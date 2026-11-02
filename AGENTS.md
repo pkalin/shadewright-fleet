@@ -30,7 +30,7 @@ so the **pull request title** is what counts; a required check (`Conventional PR
 
 - Types: `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `build`, `ci`, `chore`, `revert`.
 - Scope is optional; when used it is one of: `clusters`, `infrastructure`, `apps`, `scenarios`, `docs`, `ci`, `deps`.
-- Summary in English, imperative, starting lower case, no full stop: `feat(policy): refuse decreases by default`.
+- Summary in English, imperative, starting lower case, no full stop: `feat(scenarios): add the OOM kill scenario`.
 - `!` after the type or scope, plus a `BREAKING CHANGE:` footer in the description, for incompatible changes
   (API fields, CRD schema, flags, Helm values).
 - This repository is not released; the convention keeps the history readable and consistent with the operator.
