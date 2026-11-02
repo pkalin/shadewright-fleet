@@ -1,0 +1,24 @@
+# Secrets never live in this repo, encrypted or not
+*.pem
+*.key
+*.pfx
+*.p12
+*.kubeconfig
+kubeconfig*
+.env
+.env.*
+*.dec.yaml
+
+# Rendered output from local checks
+/rendered/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Local agent notes
+CLAUDE.local.md
+.claude/settings.local.json
