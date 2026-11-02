@@ -21,3 +21,25 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 ```bash
 kustomize build clusters/lab >/dev/null   # every Kustomization renders
 ```
+
+## Working agreement
+
+- Every change goes through a branch and a pull request; `main` is protected by a ruleset (required checks,
+  squash merge, no force push). Keep pull requests small and say why in the description.
+- Run `kustomize build clusters/lab` locally before opening a pull request, and add or update tests in the same pull request.
+- Leave the code safer than you found it: when you notice a security or reliability problem nearby, fix it
+  or raise it in the pull request, do not ignore it.
+- Prefer boring, well-known solutions and the project's existing patterns over new dependencies or clever code.
+
+## Engineering and security practices
+
+Manifests here follow the Kubernetes Pod Security "restricted" profile unless a scenario deliberately breaks
+something, and then the scenario's README says what and why:
+
+- Images pinned by tag and digest, never `latest`.
+- `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false`, all capabilities
+  dropped, `seccompProfile: RuntimeDefault`.
+- Resource requests and limits on every container; liveness and readiness probes on long-running ones.
+- A default-deny NetworkPolicy per namespace, with explicit allows.
+- ServiceAccounts with `automountServiceAccountToken: false` unless the workload needs the API, and then a
+  namespaced Role with the minimal verbs.
