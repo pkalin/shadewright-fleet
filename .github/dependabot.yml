@@ -1,0 +1,17 @@
+# Weekly updates of the pinned GitHub Actions. Titles follow Conventional Commits (ci(deps)) so they pass the
+# PR title check. Chart and image versions in Flux HelmReleases are not covered by Dependabot.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 5
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
