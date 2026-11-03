@@ -1,0 +1,20 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: missing-secret
+summary: The web Deployment reads an env var from the Secret web-credentials, which does not exist, so the container stays in CreateContainerConfigError.
+incident:
+  reason: CreateContainerConfigError
+  object:
+    apiVersion: apps/v1
+    kind: Deployment
+    namespace: demo
+    name: web
+diagnosis:
+  evidence:
+    - the missing Secret is named web-credentials, key api-token
+    - the container state reason CreateContainerConfigError and the secret not found message
+    - the existence of the Secret learned through the yes/no check, never by reading Secrets
+outcome:
+  type: refusal
+  reason: Secrets are excluded from the MVP (design 10.10) and no catalog action creates or changes one; a person is notified.
+  phase: NeedsIntervention
