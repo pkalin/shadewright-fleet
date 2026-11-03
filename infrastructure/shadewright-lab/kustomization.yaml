@@ -1,0 +1,51 @@
+# Lab values for the vendored install, applied by the Flux Kustomization "shadewright" (clusters/lab/shadewright.yaml).
+# Every ${VAR} is a Flux postBuild substitution that shadewright-azure (lab/flux.tf) fills from its Terraform outputs;
+# nothing environment-specific is committed. The ServiceAccounts, RBAC and NetworkPolicies stay as the operator builds
+# them (invariant 6, separate identities): the patches only add the workload identity annotation to each ServiceAccount
+# and the label that asks the AKS webhook to inject the federated token into each pod.
+#
+#   Variable             Source (shadewright-azure)                                              Used for
+#   ANALYZER_CLIENT_ID   foundation output analyzer_identity, field client_id                    analyzer ServiceAccount
+#   EXECUTOR_CLIENT_ID   foundation output executor_identity, field client_id                    executor ServiceAccount
+#
+# The federated credentials of both identities name the namespace shadewright-system and the ServiceAccounts
+# shadewright-analyzer and shadewright-executor (lab/federation.tf: operator_namespace, analyzer_service_account and
+# executor_service_account), which is what the vendored install creates. Changing either side needs both.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../shadewright
+patches:
+  - target:
+      kind: ServiceAccount
+      name: shadewright-executor
+    patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: shadewright-executor
+        annotations:
+          azure.workload.identity/client-id: "${EXECUTOR_CLIENT_ID}"
+  - target:
+      kind: ServiceAccount
+      name: shadewright-analyzer
+    patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: shadewright-analyzer
+        annotations:
+          azure.workload.identity/client-id: "${ANALYZER_CLIENT_ID}"
+  - target:
+      kind: Deployment
+      name: shadewright-analyzer
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: shadewright-analyzer
+      spec:
+        template:
+          metadata:
+            labels:
+              azure.workload.identity/use: "true"

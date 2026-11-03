@@ -57,8 +57,10 @@ render_dir() {
     echo "::error::kustomize build ${2:-$dir} failed"
     return 1
   fi
+  # CustomResourceDefinition has no schema in the CRD catalog (the vendored Shadewright CRDs are generated and
+  # validated in the operator repository), so it is skipped; every other kind, Flux and Shadewright included, is checked.
   if ! printf '%s\n' "$out" | "$KUBECONFORM" -strict -summary -kubernetes-version "$KUBERNETES_VERSION" \
-      -cache "$cache" -schema-location default -schema-location "$CRD_SCHEMAS"; then
+      -skip CustomResourceDefinition -cache "$cache" -schema-location default -schema-location "$CRD_SCHEMAS"; then
     echo "::error::${2:-$dir} does not pass the schema check"
     return 1
   fi

@@ -6,8 +6,8 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 
 - `clusters/lab/`: Flux entry point. `shadewright-azure` (`lab/flux.tf`) creates the Flux configuration `fleet`
   through the AKS extension: a `GitRepository` named `fleet` and a Kustomization that applies this path, both in
-  `flux-system`. This path holds no `flux-system` manifests of its own, only two Flux `Kustomization` objects:
-  `infrastructure`, then `apps` (`dependsOn`), each with `prune: true` and `wait: true`. The extension enforces
+  `flux-system`. This path holds no `flux-system` manifests of its own, only Flux `Kustomization` objects:
+  `infrastructure`, then `shadewright`, then `apps` (`dependsOn`), each with `prune: true` and `wait: true`. The extension enforces
   multi-tenancy, so every Flux object stays in `flux-system` and references sources in that namespace.
 - `clusters/kind/`: Flux entry point for a local or CI Kind cluster, the same two Kustomizations without
   substitutions. `scripts/kind.sh` creates what the lab's Flux configuration creates there: the `GitRepository`
@@ -25,6 +25,15 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   - `prometheus/`: a minimal Prometheus (ADR-0017): server and kube-state-metrics, kubelet and cAdvisor
     targets, 24h retention on an emptyDir, no Alertmanager or Grafana. In-cluster URL
     `http://prometheus-server.prometheus.svc`.
+  - `shadewright/`: the agent (analyzer and executor), vendored: `kustomize build` of the operator's `config/default`
+    and `config/watch` (namespace `demo`) at the commit in `VENDOR`, images pinned by digest. Never edit
+    `install.yaml`, `watch-demo.yaml` or `VENDOR` by hand: `scripts/vendor-shadewright.sh <commit> --analyzer-digest
+    sha256:... --executor-digest sha256:...` regenerates them and refuses a tag. Not listed in
+    `infrastructure/kustomization.yaml`: `infrastructure/shadewright-lab/` (the two workload identity client IDs as
+    `${VAR}` substitutions, each tied to a Terraform output in its header) is applied only by
+    `clusters/lab/shadewright.yaml`, after `infrastructure` and before `apps`. Check that the vendored tree is
+    current: `scripts/vendor-shadewright.sh "$(sed -n 's/^commit=//p' infrastructure/shadewright/VENDOR)" && git diff
+    --exit-code` (`tests/vendor_test.sh` covers the script offline).
   - Each add-on has its own namespace (restricted Pod Security labels, default-deny NetworkPolicy and explicit
     allows) and a `HelmRepository` and `HelmRelease` in `flux-system` (multi-tenancy) with `targetNamespace`.
     Charts are pinned to exact versions and images to tag and digest in the values; bump them together.
