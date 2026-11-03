@@ -47,20 +47,20 @@ require_render_tools() {
   require_version kubeconform "$KUBECONFORM_VERSION" "$out"
 }
 
-# render_dir <dir>: kustomize build of one directory and kubeconform -strict on the output, against the Kubernetes
-# schemas of the lab's version and the pinned CRD catalog. The same check as scripts/render.sh.
+# render_dir <dir> [label] [skipped kinds]: kustomize build of one directory and kubeconform -strict on the output,
+# against the Kubernetes schemas of the lab's version and the pinned CRD catalog. The same check as scripts/render.sh.
+# The third argument is a comma-separated list of kinds kubeconform skips; leave it empty to validate everything.
 render_dir() {
-  local dir="$1" out cache
+  local dir="$1" out cache skip=()
+  [ -z "${3:-}" ] || skip=(-skip "$3")
   cache="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/kubeconform-cache"
   mkdir -p "$cache"
   if ! out="$("$KUSTOMIZE" build "$dir")"; then
     echo "::error::kustomize build ${2:-$dir} failed"
     return 1
   fi
-  # CustomResourceDefinition has no schema in the CRD catalog (the vendored Shadewright CRDs are generated and
-  # validated in the operator repository), so it is skipped; every other kind, Flux and Shadewright included, is checked.
   if ! printf '%s\n' "$out" | "$KUBECONFORM" -strict -summary -kubernetes-version "$KUBERNETES_VERSION" \
-      -skip CustomResourceDefinition -cache "$cache" -schema-location default -schema-location "$CRD_SCHEMAS"; then
+      ${skip[@]+"${skip[@]}"} -cache "$cache" -schema-location default -schema-location "$CRD_SCHEMAS"; then
     echo "::error::${2:-$dir} does not pass the schema check"
     return 1
   fi

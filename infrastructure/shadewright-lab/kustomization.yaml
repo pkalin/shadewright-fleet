@@ -11,6 +11,12 @@
 # The federated credentials of both identities name the namespace shadewright-system and the ServiceAccounts
 # shadewright-analyzer and shadewright-executor (lab/federation.tf: operator_namespace, analyzer_service_account and
 # executor_service_account), which is what the vendored install creates. Changing either side needs both.
+#
+# Two more patches that are not identity values. The namespace gets the restricted Pod Security labels the other
+# add-ons have (both Deployments already meet restricted: non-root, RuntimeDefault seccomp, no privilege escalation,
+# all capabilities dropped, read-only root filesystem). The four CRDs and the namespace get
+# kustomize.toolkit.fluxcd.io/prune: disabled, so renaming or deleting the Flux Kustomization never deletes the CRDs
+# and with them every Incident and RemediationRequest.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -49,3 +55,27 @@ patches:
           metadata:
             labels:
               azure.workload.identity/use: "true"
+  - target:
+      kind: Namespace
+      name: shadewright-system
+    patch: |-
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: shadewright-system
+        annotations:
+          kustomize.toolkit.fluxcd.io/prune: disabled
+        labels:
+          pod-security.kubernetes.io/enforce: restricted
+          pod-security.kubernetes.io/audit: restricted
+          pod-security.kubernetes.io/warn: restricted
+  - target:
+      kind: CustomResourceDefinition
+      name: ".*\\.remediation\\.shadewright\\.io"
+    patch: |-
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: ignored
+        annotations:
+          kustomize.toolkit.fluxcd.io/prune: disabled

@@ -7,10 +7,11 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 - `clusters/lab/`: Flux entry point. `shadewright-azure` (`lab/flux.tf`) creates the Flux configuration `fleet`
   through the AKS extension: a `GitRepository` named `fleet` and a Kustomization that applies this path, both in
   `flux-system`. This path holds no `flux-system` manifests of its own, only Flux `Kustomization` objects:
-  `infrastructure`, then `shadewright`, then `apps` (`dependsOn`), each with `prune: true` and `wait: true`. The extension enforces
+  `infrastructure`, then `shadewright` and `apps`, each after `infrastructure` (`dependsOn`) and independent of each
+  other, with `prune: true` and `wait: true`. The extension enforces
   multi-tenancy, so every Flux object stays in `flux-system` and references sources in that namespace.
-- `clusters/kind/`: Flux entry point for a local or CI Kind cluster, the same two Kustomizations without
-  substitutions. `scripts/kind.sh` creates what the lab's Flux configuration creates there: the `GitRepository`
+- `clusters/kind/`: Flux entry point for a local or CI Kind cluster, the `infrastructure` and `apps`
+  Kustomizations without substitutions (no `shadewright`). `scripts/kind.sh` creates what the lab's Flux configuration creates there: the `GitRepository`
   `fleet` and a Kustomization `kind` that applies this path. Nothing applied from `clusters/kind/` may need an Azure
   value, so Azure-only parts (the Shadewright install with workload identity) go into a path only `clusters/lab`
   applies.
@@ -31,9 +32,9 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
     sha256:... --executor-digest sha256:...` regenerates them and refuses a tag. Not listed in
     `infrastructure/kustomization.yaml`: `infrastructure/shadewright-lab/` (the two workload identity client IDs as
     `${VAR}` substitutions, each tied to a Terraform output in its header) is applied only by
-    `clusters/lab/shadewright.yaml`, after `infrastructure` and before `apps`. Check that the vendored tree is
-    current: `scripts/vendor-shadewright.sh "$(sed -n 's/^commit=//p' infrastructure/shadewright/VENDOR)" && git diff
-    --exit-code` (`tests/vendor_test.sh` covers the script offline).
+    `clusters/lab/shadewright.yaml`, after `infrastructure`; nothing depends on it, so a broken agent cannot block `apps`.
+    `make check-vendor` (CI, needs network) reruns the script at the commit in `VENDOR` and fails on any diff, so a
+    hand edit of the vendored files cannot land; `tests/vendor_test.sh` covers the script offline.
   - Each add-on has its own namespace (restricted Pod Security labels, default-deny NetworkPolicy and explicit
     allows) and a `HelmRepository` and `HelmRelease` in `flux-system` (multi-tenancy) with `targetNamespace`.
     Charts are pinned to exact versions and images to tag and digest in the values; bump them together.

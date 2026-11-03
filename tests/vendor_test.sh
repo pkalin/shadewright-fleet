@@ -17,18 +17,24 @@ A="sha256:$(printf 'a%.0s' $(seq 1 64))"
 E="sha256:$(printf 'e%.0s' $(seq 1 64))"
 B="sha256:$(printf 'b%.0s' $(seq 1 64))"
 
-# --- fixture operator repository -------------------------------------------------------------------------------------
+# --- fixture operator repositories -----------------------------------------------------------------------------------
 
-OP="$T/operator"
-mkdir -p "$OP/config/default" "$OP/config/watch"
-git init -q "$OP"
-cat >"$OP/config/default/kustomization.yaml" <<'YAML'
+SIDECAR="busybox@sha256:$(printf 'c%.0s' $(seq 1 64))"
+
+# make_fixture <dir> <extra pod spec lines for the analyzer, indented 6 spaces> <analyzer container name>: a repository whose
+# analyzer Deployment has a pinned sidecar BEFORE the analyzer container, so setting images by position would be wrong.
+make_fixture() {
+  local dir="$1" extra="$2" name="$3"
+  mkdir -p "$dir/config/default" "$dir/config/watch"
+  git init -q "$dir"
+  cat >"$dir/config/default/kustomization.yaml" <<'YAML'
 namespace: shadewright-system
 namePrefix: shadewright-
 resources:
   - deployments.yaml
 YAML
-cat >"$OP/config/default/deployments.yaml" <<'YAML'
+  {
+    cat <<YAML
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -37,8 +43,11 @@ metadata:
 spec:
   template:
     spec:
+${extra}
       containers:
-        - name: analyzer
+        - name: sidecar
+          image: ${SIDECAR}
+        - name: ${name}
           image: controller:latest
 ---
 apiVersion: apps/v1
@@ -53,11 +62,12 @@ spec:
         - name: executor
           image: controller:latest
 YAML
-cat >"$OP/config/watch/kustomization.yaml" <<'YAML'
+  } >"$dir/config/default/deployments.yaml"
+  cat >"$dir/config/watch/kustomization.yaml" <<'YAML'
 resources:
   - role_binding_demo.yaml
 YAML
-cat >"$OP/config/watch/role_binding_demo.yaml" <<'YAML'
+  cat >"$dir/config/watch/role_binding_demo.yaml" <<'YAML'
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -72,9 +82,22 @@ subjects:
     name: shadewright-analyzer
     namespace: shadewright-system
 YAML
-git -C "$OP" add -A
-git -C "$OP" commit -q -m fixture
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m fixture
+}
+
+OP="$T/operator"
+make_fixture "$OP" "      serviceAccountName: analyzer" analyzer
 COMMIT="$(git -C "$OP" rev-parse HEAD)"
+OP_INIT="$T/operator-init"
+make_fixture "$OP_INIT" "      initContainers:
+        - name: init
+          image: busybox:1.36" analyzer
+COMMIT_INIT="$(git -C "$OP_INIT" rev-parse HEAD)"
+OP_NAME="$T/operator-name"
+make_fixture "$OP_NAME" "      serviceAccountName: analyzer" manager
+COMMIT_NAME="$(git -C "$OP_NAME" rev-parse HEAD)"
+PUBLIC="https://github.com/pkalin/shadewright"
 export SHADEWRIGHT_REPO="$OP"
 
 VENDOR="$SRC_ROOT/scripts/vendor-shadewright.sh"
@@ -91,6 +114,8 @@ check "sets the executor image to its digest" grep -q "image: ghcr.io/pkalin/sha
 check "leaves no placeholder image" bash -c "! grep -q 'controller:latest' '$OUT_DIR/install.yaml'"
 check "records the commit and digests in VENDOR" bash -c \
   "grep -q '^commit=${COMMIT}\$' '$OUT_DIR/VENDOR' && grep -q '^analyzer_digest=${A}\$' '$OUT_DIR/VENDOR' && grep -q '^executor_digest=${E}\$' '$OUT_DIR/VENDOR'"
+check "sets images by container name: the sidecar before the analyzer stays" grep -q "image: ${SIDECAR}\$" "$OUT_DIR/install.yaml"
+check "records only the public repository" grep -qx "repository=${PUBLIC}" "$OUT_DIR/VENDOR"
 check "builds the RoleBinding for demo" grep -q 'namespace: demo$' "$OUT_DIR/watch-demo.yaml"
 
 first="$(cd "$OUT_DIR" && cat install.yaml watch-demo.yaml VENDOR | cksum)"
@@ -127,6 +152,20 @@ check "refused runs left the output alone" test "$before" = "$after"
 run "$VENDOR" "$COMMIT" --analyzer-digest "$A"
 expect_ok "a single new digest keeps the other from VENDOR" "vendored"
 check "the other digest stays" grep -q "shadewright-executor@${E}\$" "$OUT_DIR/install.yaml"
+
+# A moving tag on an init container (a list item with only image and name) is refused, and nothing is written.
+run env SHADEWRIGHT_REPO="$OP_INIT" "$VENDOR" "$COMMIT_INIT" --analyzer-digest "$A" --executor-digest "$E"
+expect_fail "refuses an init container with a moving tag" "not pinned by digest"
+# A container the script was told to set but that does not exist is refused (the patch would add it).
+run env SHADEWRIGHT_REPO="$OP_NAME" "$VENDOR" "$COMMIT_NAME" --analyzer-digest "$A" --executor-digest "$E"
+expect_fail "refuses a missing container" "no container analyzer"
+# Only the public repository may build the committed install.
+run env -u VENDOR_OUT "$VENDOR" "$COMMIT" --analyzer-digest "$A" --executor-digest "$E"
+expect_fail "refuses another repository when writing the committed directory" "needs VENDOR_OUT"
+# Digests recorded for another repository are not reused.
+sed -i.bak 's#^repository=.*#repository=https://example.org/fork#' "$OUT_DIR/VENDOR" && rm "$OUT_DIR/VENDOR.bak"
+run "$VENDOR" "$COMMIT"
+expect_fail "does not reuse digests recorded for another repository" "give --analyzer-digest"
 
 # --- the committed tree ----------------------------------------------------------------------------------------------
 
