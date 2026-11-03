@@ -14,3 +14,4 @@ resources:
   - worker-scaledobject.yaml
   - worker-service.yaml
   - worker-serviceaccount.yaml
+# guard test, do not merge
