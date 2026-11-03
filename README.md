@@ -44,7 +44,10 @@ takes changes only through a reviewed pull request:
 
 - **One approval of the most recent push**, and approvals are dismissed when new commits arrive. The operator's
   GitHub App cannot approve its own pull request, so nothing it proposes reaches the cluster without a person.
-- **Required checks:** `Conventional PR title` and `Render manifests`. A change that does not render never merges.
+- **Code owner review** (`.github/CODEOWNERS`) and the approval must be of the most recent push.
+- **Required checks:** `Conventional PR title`, `Render manifests` and `Path guard` (a pull request that touches anything
+  outside `.github/shadewright-paths.txt`, read from the base branch, fails and needs a human). A change that does not
+  render never merges.
 - **Squash merge only**; no force pushes, no deletion of `main`.
 - **Bypass:** only the repository admin role, and only for pull requests, so the maintainer (a solo maintainer
   cannot approve their own pull request) can still merge theirs. GitHub logs every bypass. The GitHub App is

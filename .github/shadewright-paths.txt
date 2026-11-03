@@ -1,0 +1,8 @@
+# Paths a pull request may change without extra scrutiny from the path guard (.github/workflows/path-guard.yml).
+# One glob per line; blank lines and lines starting with # are ignored. The guard reads this file from the BASE
+# commit of a pull request, so a pull request cannot widen its own allowance: changing this file is itself a
+# change outside the list and always fails the guard. A human merges it.
+#
+# Globs: * matches within one path segment, ** matches across segments, ? matches one character.
+# Never list .github/, clusters/, infrastructure/ or this file: the guard refuses those whatever this file says.
+apps/**
