@@ -1,0 +1,21 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: invalid-manifest
+summary: A Service manifest in apps/demo/ fails schema validation, so the Flux Kustomization apps is not Ready and reports the apply error.
+render: fails
+incident:
+  reason: ReconciliationFailed
+  object:
+    apiVersion: kustomize.toolkit.fluxcd.io/v1
+    kind: Kustomization
+    namespace: flux-system
+    name: apps
+diagnosis:
+  evidence:
+    - the failing Kustomization flux-system/apps and its Ready condition False
+    - the error, a dry-run failure on Service demo/web (ports[0].port, a string where an integer is required)
+    - the file, apps/demo/web-service.yaml
+outcome:
+  type: refusal
+  reason: Fixing arbitrary manifests is not in the catalog, and Shadewright never suspends or changes Flux (design 7); a person is notified.
+  phase: NeedsIntervention
