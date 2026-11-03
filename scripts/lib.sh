@@ -8,7 +8,9 @@ REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 . "${REPO_ROOT}/scripts/tools.env"
 
 # Tools installed by scripts/install-tools.sh come first, so the pinned versions win over others on PATH.
-PATH="${REPO_ROOT}/bin:${PATH}"
+# FLEET_TOOLS_DIR replaces that directory; only the tests set it, to an empty one, so that their stubs on PATH win
+# over whatever make tools has put in bin/.
+PATH="${FLEET_TOOLS_DIR:-${REPO_ROOT}/bin}:${PATH}"
 export PATH
 
 KUSTOMIZE="${KUSTOMIZE:-kustomize}"

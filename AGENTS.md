@@ -70,7 +70,7 @@ make check-scenarios  # every scenario: layout, expected.yaml against the schema
 ```
 
 `render.sh` and the harness refuse kustomize and kubeconform versions other than those in `scripts/tools.env`;
-`bin/` comes first on `PATH`. A new kustomization is picked up automatically. Scripts must run on macOS bash 3.2 and
+`bin/` comes first on `PATH` (the tests set `FLEET_TOOLS_DIR` to an empty directory so their stubs win). A new kustomization is picked up automatically. Scripts must run on macOS bash 3.2 and
 GNU Make 3.81 as well as Linux, pass shellcheck, and come with offline tests.
 
 Rules on `main` (set in the ruleset by the maintainer; README, "Rules on `main`"): one approval of the most
