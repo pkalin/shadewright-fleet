@@ -34,7 +34,8 @@ scripts/render.sh   # kustomize build of clusters/, infrastructure/, apps/, kube
 It needs `kustomize` and `kubeconform` on `PATH` (or `KUSTOMIZE=` and `KUBECONFORM=` pointing at them); CI pins both
 by version and checksum in `.github/workflows/render.yaml`. A new kustomization is picked up automatically.
 
-Required checks on `main` (set in the ruleset by the maintainer):
+Rules on `main` (set in the ruleset by the maintainer; README, "Rules on `main`"): one approval of the most
+recent push, the repository admin role as the only bypass actor (pull requests only), never the App. Required checks:
 
 - `Conventional PR title` (`.github/workflows/pr-title.yml`).
 - `Render manifests` (`.github/workflows/render.yaml`): every kustomization under `clusters/`, `infrastructure/` and `apps/` renders and passes the schema check for the lab's Kubernetes version, and every Flux `path:` in `clusters/` exists. `scenarios/` (deliberately broken) is left out.
