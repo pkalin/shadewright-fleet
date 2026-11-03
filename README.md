@@ -21,9 +21,24 @@ repository: they arrive as Flux `postBuild` substitutions (`${VAR}`) from the la
 
 ## Checks
 
-Every pull request runs `Render manifests`: each kustomization must build and pass `kubeconform -strict` with
-the Flux CRD schemas. Run the same check locally with `scripts/render.sh`. The full rules and planned layout
-are in [AGENTS.md](AGENTS.md).
+Every pull request runs `Render manifests`: each kustomization Flux applies must build and pass
+`kubeconform -strict` with the Flux CRD schemas, and every Flux `path:` must exist. Run the same check locally
+with `scripts/render.sh`. The full rules and planned layout are in [AGENTS.md](AGENTS.md).
+
+## Rules on `main`
+
+Flux applies whatever lands on `main`, and the Shadewright operator opens its pull requests here, so `main`
+takes changes only through a reviewed pull request:
+
+- **One approval of the most recent push**, and approvals are dismissed when new commits arrive. The operator's
+  GitHub App cannot approve its own pull request, so nothing it proposes reaches the cluster without a person.
+- **Required checks:** `Conventional PR title` and `Render manifests`. A change that does not render never merges.
+- **Squash merge only**; no force pushes, no deletion of `main`.
+- **Bypass:** only the repository admin role, and only for pull requests, so the maintainer (a solo maintainer
+  cannot approve their own pull request) can still merge theirs. GitHub logs every bypass. The GitHub App is
+  never a bypass actor.
+
+The ruleset lives in the repository settings, not in Git; changing it is the maintainer's.
 
 ## License
 
