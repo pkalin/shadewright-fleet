@@ -26,7 +26,9 @@ fi
 export REAL_KUBECONFORM
 
 STUBS="$T/stubs"
-mkdir -p "$STUBS"
+mkdir -p "$STUBS" "$T/no-tools"
+# scripts/lib.sh puts bin/ first on PATH; point it at an empty directory so the stubs win over the real tools there.
+export FLEET_TOOLS_DIR="$T/no-tools"
 export PATH="$STUBS:$PATH"
 export STUB_LOG="$T/stub.log"
 : >"$STUB_LOG"
