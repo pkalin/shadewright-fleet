@@ -42,9 +42,12 @@ spec:
       replicaCount: 1
     metricsServer:
       replicaCount: 1
+    # Fail, not the chart's Ignore: an invalid ScaledObject is rejected instead of slipping through when the
+    # webhook is unavailable. With one replica, ScaledObject writes fail while it restarts; Flux retries.
     webhooks:
       enabled: true
       replicaCount: 1
+      failurePolicy: Fail
     # Least privilege: scale only Deployments and StatefulSets (no wildcard scale RBAC), and read Secrets only
     # in the keda namespace. The demo triggers need no credentials.
     rbac:

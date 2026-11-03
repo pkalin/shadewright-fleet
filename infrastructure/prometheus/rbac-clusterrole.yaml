@@ -1,0 +1,16 @@
+# Cluster-wide, only what the node jobs need: discover nodes, and read the kubelet's /metrics and
+# /metrics/cadvisor (nodes/metrics). Not nodes/proxy, which allows command execution through the kubelet.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-server-nodes
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes/metrics"]
+    verbs: ["get"]

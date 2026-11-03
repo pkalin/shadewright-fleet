@@ -31,6 +31,10 @@ spec:
     remediation:
       retries: 3
   values:
+    # The chart's ClusterRole grants cluster-wide reads of configmaps and ingresses that no job here uses, so
+    # it is off and rbac-*.yaml next to this file grant only what the scrape jobs need.
+    rbac:
+      create: false
     alertmanager:
       enabled: false
     prometheus-node-exporter:
@@ -115,7 +119,21 @@ spec:
     # Scrape jobs: Prometheus itself, kubelet and cAdvisor (nodes, port 10250), kube-state-metrics (annotated
     # Service in this namespace) and annotated pods in demo. The other default jobs are off: they would need
     # Pushgateway, a blackbox exporter, or network paths the NetworkPolicies here do not open.
+    #
+    # Kubelet and cAdvisor are scraped directly, with the kubelet's serving certificate verified against the
+    # cluster CA (AKS signs it with the cluster CA on 1.27 and later), instead of the chart's
+    # insecure_skip_verify. Scraping through the API server proxy would need get on nodes/proxy, which the
+    # Kubernetes RBAC good practices treat as command execution on the nodes; direct scrapes need only
+    # nodes/metrics. On Kind, whose kubelets self-sign, these two jobs fail and the rest still work.
     scrapeConfigs:
+      kubernetes-nodes:
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: false
+      kubernetes-nodes-cadvisor:
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: false
       kubernetes-api-servers:
         enabled: false
       kubernetes-service-endpoints:
@@ -130,7 +148,9 @@ spec:
         enabled: false
       kubernetes-services:
         enabled: false
+      # Every 15s for the demo pods only (a handful of series), so KEDA's rate() window holds enough samples.
       kubernetes-pods:
+        scrape_interval: 15s
         kubernetes_sd_configs:
           - role: pod
             namespaces:
