@@ -1,0 +1,24 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: oom
+summary: The web container loads 36 MB into memory against a 48Mi limit, so it is OOMKilled and restarts.
+incident:
+  reason: OOMKilled
+  object:
+    apiVersion: apps/v1
+    kind: Deployment
+    namespace: demo
+    name: web
+diagnosis:
+  evidence:
+    - OOMKilled from the container status (last state), not from an event reason
+    - the restart count of the web container
+    - the memory working set from Prometheus (container_memory_working_set_bytes) near the 48Mi limit
+outcome:
+  type: pull-request
+  action: SetContainerMemoryLimit
+  bounds:
+    min: 64Mi
+    max: 128Mi
+  paths:
+    - apps/demo/web-deployment.yaml
