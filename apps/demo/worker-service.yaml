@@ -1,0 +1,18 @@
+# Where jobs for the worker are sent (the scenarios' load generator runs in demo).
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: demo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: worker
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

@@ -1,4 +1,6 @@
-# Filled by later tasks: the demo workloads under apps/demo/.
+# Demo workloads the scenarios break. Only resources: the operator's source mapping (ADR-0012) follows this list
+# and stops at anything else.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources: []
+resources:
+  - demo

@@ -1,0 +1,23 @@
+# HTTP between pods in demo only (web and worker on 9898), so a scenario's load generator can reach them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-http-in-namespace
+  namespace: demo
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9898
+  egress:
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9898

@@ -1,0 +1,26 @@
+# Scales the worker on the rate of jobs it handles (requests other than its own probes), read from Prometheus.
+# The trigger needs no cloud account or credentials. AdjustKedaMaxReplicas patches maxReplicaCount in place,
+# so it stays a literal value in this file (ADR-0012).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: worker
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.prometheus.svc.cluster.local
+        query: sum(rate(http_request_duration_seconds_count{namespace="demo", app_kubernetes_io_name="worker", path!~"healthz|readyz"}[2m])) or vector(0)
+        threshold: "5"
