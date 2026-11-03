@@ -1,0 +1,34 @@
+# keda-operator: serves scaler metrics to the metrics API server (gRPC 9666) and queries Prometheus for the
+# Prometheus scaler.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keda-operator
+  namespace: keda
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: keda-operator
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: keda-operator-metrics-apiserver
+      ports:
+        - protocol: TCP
+          port: 9666
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: prometheus
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: 9090

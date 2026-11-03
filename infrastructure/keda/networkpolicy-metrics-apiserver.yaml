@@ -1,0 +1,27 @@
+# keda-operator-metrics-apiserver: the API server calls it for external.metrics.k8s.io (6443). On AKS that call
+# arrives through the control plane tunnel, whose source is not a stable pod or namespace, so the port is open to
+# any source; the server authenticates the caller. It asks keda-operator for the values (9666).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keda-metrics-apiserver
+  namespace: keda
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: keda-operator-metrics-apiserver
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 6443
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: keda-operator
+      ports:
+        - protocol: TCP
+          port: 9666

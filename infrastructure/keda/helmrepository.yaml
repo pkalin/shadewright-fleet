@@ -1,0 +1,10 @@
+# Upstream KEDA charts. The AKS Flux extension enforces multi-tenancy, so sources and releases stay in
+# flux-system; the release itself installs into the keda namespace (targetNamespace).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: kedacore
+  namespace: flux-system
+spec:
+  interval: 12h
+  url: https://kedacore.github.io/charts

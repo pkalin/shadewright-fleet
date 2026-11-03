@@ -1,0 +1,83 @@
+# KEDA from the upstream chart, not the AKS add-on (shadewright-azure, lab/aks.tf): one replica of each
+# component, sized for the lab's single node. The chart installs the CRDs from its templates, so the apps
+# Kustomization (which waits for this one) can create ScaledObjects. Deleting this HelmRelease removes the CRDs
+# and every ScaledObject with them.
+#
+# Chart and images: https://github.com/kedacore/charts (chart 2.21.0, app 2.21.0). Digests are the multi-arch
+# index digests published on ghcr.io for the 2.21.0 tags. Bump chart, tags and digests together.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: keda
+  namespace: flux-system
+spec:
+  interval: 30m
+  releaseName: keda
+  targetNamespace: keda
+  storageNamespace: keda
+  chart:
+    spec:
+      chart: keda
+      version: "2.21.0"
+      sourceRef:
+        kind: HelmRepository
+        name: kedacore
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    image:
+      keda:
+        tag: "2.21.0@sha256:81fe6547ce8d1cc29273f887b76507e9b853e5bc1f875ec23fe60061a38ed809"
+      metricsApiServer:
+        tag: "2.21.0@sha256:255375037fe592732eeb554743aae360c2da88cf0b9b1258d0a987ef885f0881"
+      webhooks:
+        tag: "2.21.0@sha256:e1969628cca6123e32eea13c47c75817091af2657fa68d9d0d58a8620d1b75b1"
+      pullPolicy: IfNotPresent
+    operator:
+      replicaCount: 1
+    metricsServer:
+      replicaCount: 1
+    webhooks:
+      enabled: true
+      replicaCount: 1
+    # Least privilege: scale only Deployments and StatefulSets (no wildcard scale RBAC), and read Secrets only
+    # in the keda namespace. The demo triggers need no credentials.
+    rbac:
+      enabledCustomScaledRefKinds: false
+    permissions:
+      operator:
+        restrict:
+          secret: true
+      metricServer:
+        restrict:
+          secret: true
+    # The chart's own security contexts already meet the restricted profile (non-root, no privilege
+    # escalation, all capabilities dropped, read-only root, RuntimeDefault seccomp); they are not overridden.
+    resources:
+      operator:
+        requests:
+          cpu: 50m
+          memory: 96Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+      metricServer:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          cpu: 250m
+          memory: 192Mi
+      webhooks:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+    asciiArt: false

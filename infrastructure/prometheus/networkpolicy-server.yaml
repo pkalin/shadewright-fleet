@@ -1,0 +1,45 @@
+# prometheus-server: queried by keda-operator (the Prometheus scaler) on 9090; the Shadewright analyzer gets
+# its own allow with the install. It scrapes kubelet and cAdvisor on the nodes (10250; node addresses are
+# environment-specific, so any destination), kube-state-metrics (8080) and the annotated pods in demo (9797).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-server
+  namespace: prometheus
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keda
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: keda-operator
+      ports:
+        - protocol: TCP
+          port: 9090
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 10250
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kube-state-metrics
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: demo
+      ports:
+        - protocol: TCP
+          port: 9797

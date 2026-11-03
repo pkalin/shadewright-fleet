@@ -1,0 +1,17 @@
+# keda-admission-webhooks: the API server calls the validating webhook (9443); open to any source for the same
+# reason as the metrics API server.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keda-admission-webhooks
+  namespace: keda
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: keda-admission-webhooks
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 9443

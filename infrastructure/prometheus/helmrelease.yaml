@@ -1,0 +1,140 @@
+# A minimal Prometheus for the lab (ADR-0017): the server with kube-state-metrics and the kubelet and cAdvisor
+# targets, 24h retention on an emptyDir (the lab has no CSI drivers, shadewright-azure lab/aks.tf). No
+# Alertmanager, node exporter, Pushgateway or Grafana. The analyzer and the KEDA Prometheus scaler query it at
+# http://prometheus-server.prometheus.svc (port 80).
+#
+# Chart: https://github.com/prometheus-community/helm-charts (prometheus 29.40.3, app v3.15.1, with
+# kube-state-metrics 8.8.0, app v2.20.0). Digests are the multi-arch index digests published on quay.io and
+# registry.k8s.io for the tags below. Bump chart, tags and digests together.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus
+  namespace: flux-system
+spec:
+  interval: 30m
+  releaseName: prometheus
+  targetNamespace: prometheus
+  storageNamespace: prometheus
+  chart:
+    spec:
+      chart: prometheus
+      version: "29.40.3"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    alertmanager:
+      enabled: false
+    prometheus-node-exporter:
+      enabled: false
+    prometheus-pushgateway:
+      enabled: false
+
+    configmapReload:
+      prometheus:
+        image:
+          tag: "v0.94.2@sha256:a1897c67478bc23434534e91ad3855280771196b1daf17144db9dbcb655bef71"
+        containerSecurityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+
+    server:
+      image:
+        tag: "v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2"
+      replicaCount: 1
+      retention: 24h
+      retentionSize: 1GB
+      persistentVolume:
+        enabled: false
+      emptyDir:
+        sizeLimit: 2Gi
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+      # Prometheus 3 sets GOMEMLIMIT from the memory limit, so it collects garbage before the limit is hit.
+      resources:
+        requests:
+          cpu: 100m
+          memory: 320Mi
+        limits:
+          cpu: 500m
+          memory: 640Mi
+
+    kube-state-metrics:
+      image:
+        tag: "v2.20.0"
+        sha: "sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b"
+      # Only the objects the scenarios look at. Leaving out secrets and configmaps also keeps them out of its
+      # ClusterRole.
+      collectors:
+        - daemonsets
+        - deployments
+        - horizontalpodautoscalers
+        - jobs
+        - namespaces
+        - nodes
+        - pods
+        - replicasets
+        - statefulsets
+      resources:
+        requests:
+          cpu: 10m
+          memory: 48Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+    # Scrape jobs: Prometheus itself, kubelet and cAdvisor (nodes, port 10250), kube-state-metrics (annotated
+    # Service in this namespace) and annotated pods in demo. The other default jobs are off: they would need
+    # Pushgateway, a blackbox exporter, or network paths the NetworkPolicies here do not open.
+    scrapeConfigs:
+      kubernetes-api-servers:
+        enabled: false
+      kubernetes-service-endpoints:
+        kubernetes_sd_configs:
+          - role: endpointslice
+            namespaces:
+              names:
+                - prometheus
+      kubernetes-service-endpoints-slow:
+        enabled: false
+      prometheus-pushgateway:
+        enabled: false
+      kubernetes-services:
+        enabled: false
+      kubernetes-pods:
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - demo
+      kubernetes-pods-slow:
+        enabled: false
