@@ -1,0 +1,3 @@
+# Every path has a human owner, so a pull request that touches anything needs that person's review once the
+# ruleset requires code owner review. No path is left unowned yet: paths for auto-merge come with a later change.
+* @pkalin

@@ -74,9 +74,18 @@ make check-scenarios  # every scenario: layout, expected.yaml against the schema
 GNU Make 3.81 as well as Linux, pass shellcheck, and come with offline tests.
 
 Rules on `main` (set in the ruleset by the maintainer; README, "Rules on `main`"): one approval of the most
-recent push, the repository admin role as the only bypass actor (pull requests only), never the App. Required checks:
+recent push, code owner review, the repository admin role as the only bypass actor (pull requests only), never the App. Required checks:
 
 - `Conventional PR title` (`.github/workflows/pr-title.yml`).
+- `Path guard` (`.github/workflows/path-guard.yml`; required once the maintainer applies the ruleset): fails when a
+  pull request changes (or renames from or to) any path outside `.github/shadewright-paths.txt`, which starts with
+  `apps/**`, or changes a symlink or submodule. It runs on `pull_request_target` so the workflow, the list and
+  `scripts/path_guard.py` are the base copies, and it only ever reads the head through the API (file list, Git
+  tree). Never check out or run the head there, and never interpolate PR text into a shell. `.github/`, `clusters/`,
+  `infrastructure/`, `scripts/`, `tests/`, `Makefile` and every root file are refused whatever the list says.
+  Remaining gap: a pull request can add a new workflow whose job is also named `Path guard`. So `.github/` always
+  stays code-owned (`.github/CODEOWNERS` gives `*` a human owner) and is never on the allow list; code owner review
+  is what protects the guard itself.
 - `Render manifests` (`.github/workflows/render.yaml`): every kustomization under `clusters/`, `infrastructure/` and `apps/` renders and passes the schema check for the lab's Kubernetes version, and every Flux `path:` in `clusters/` exists. `scenarios/` (deliberately broken) is left out.
 
 Not required (yet): `Harness tests` (`.github/workflows/harness.yaml`: shellcheck, `tests/`, `make check-scenarios`)
