@@ -135,3 +135,5 @@ outcome:
 | `outcome.reason`, `outcome.phase` | `reason` for `refusal` | why nothing may be proposed, and the phase a request ends in, if any |
 
 The file holds one document; no other fields are allowed.
+
+# guard test, do not merge

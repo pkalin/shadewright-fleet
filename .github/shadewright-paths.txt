@@ -6,3 +6,4 @@
 # Globs: * matches within one path segment, ** matches across segments, ? matches one character.
 # Never list .github/, clusters/, infrastructure/ or this file: the guard refuses those whatever this file says.
 apps/**
+scenarios/**
