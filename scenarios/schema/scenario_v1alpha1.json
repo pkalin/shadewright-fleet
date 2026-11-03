@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Scenario expectation (scenarios/<name>/expected.yaml)",
+  "description": "What Shadewright must conclude for one scenario. Checked with kubeconform against this file (scripts/scenario.sh check). Documented in scenarios/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "name", "summary", "incident", "diagnosis", "outcome"],
+  "properties": {
+    "apiVersion": { "const": "scenarios.shadewright.io/v1alpha1" },
+    "kind": { "const": "Scenario" },
+    "name": {
+      "description": "The scenario's folder name, also the make target: make scenario-<name>.",
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,48}[a-z0-9])?$"
+    },
+    "summary": { "description": "One line: what breaks.", "type": "string", "minLength": 1, "maxLength": 200 },
+    "render": {
+      "description": "Whether apps/ with this scenario applied passes the render check. Only a scenario that breaks the render on purpose (invalid manifest) says fails; the harness refuses a scenario whose render does not match.",
+      "enum": ["passes", "fails"],
+      "default": "passes"
+    },
+    "incident": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "object"],
+      "properties": {
+        "reason": {
+          "description": "The reason the incident must carry: an event reason (FailedScheduling) or a container state reason (OOMKilled, ImagePullBackOff, CreateContainerConfigError).",
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+        },
+        "object": {
+          "description": "The object the incident is about.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name"],
+          "properties": {
+            "apiVersion": { "type": "string", "minLength": 1 },
+            "kind": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
+            "namespace": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
+            "name": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" }
+          }
+        }
+      }
+    },
+    "diagnosis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence"],
+      "properties": {
+        "evidence": {
+          "description": "Facts the diagnosis must name, each a short phrase (the image reference, the missing Secret's name, the restart count).",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "outcome": {
+      "oneOf": [
+        {
+          "description": "Shadewright opens a pull request with one catalog action.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "action", "bounds", "paths"],
+          "properties": {
+            "type": { "const": "pull-request" },
+            "action": {
+              "description": "The catalog action type, such as SetContainerMemoryLimit or AdjustKedaMaxReplicas.",
+              "type": "string",
+              "pattern": "^[A-Z][A-Za-z0-9]*$"
+            },
+            "bounds": {
+              "description": "The range the proposed value must fall in, as quantities (64Mi) or integers.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["min", "max"],
+              "properties": {
+                "min": { "type": ["string", "integer"] },
+                "max": { "type": ["string", "integer"] }
+              }
+            },
+            "paths": {
+              "description": "The only files the pull request may change.",
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^apps/demo/[a-z0-9][a-z0-9._-]*\\.yaml$" }
+            }
+          }
+        },
+        {
+          "description": "Shadewright proposes nothing and a person is notified.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "reason"],
+          "properties": {
+            "type": { "const": "refusal" },
+            "reason": { "description": "Why no change may be proposed.", "type": "string", "minLength": 1 },
+            "phase": {
+              "description": "The phase a RemediationRequest ends in, if one is created at all.",
+              "enum": ["Denied", "NeedsIntervention"]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

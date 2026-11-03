@@ -1,0 +1,41 @@
+name: Harness
+
+# The scenario harness and the Kind scripts (ADR-0022): shellcheck, the offline tests in tests/ (local bare Git
+# remotes, stubbed kubectl and kind), and the scenarios under scenarios/ (layout, expected.yaml against its schema,
+# and whether apps/ with each scenario renders as the scenario declares). Reads the repository only: no secrets.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Harness tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Pinned by version and checksum in scripts/tools.env.
+      - name: Install kustomize, kubeconform and shellcheck
+        run: scripts/install-tools.sh kustomize kubeconform shellcheck
+
+      - name: Shellcheck
+        run: make lint
+
+      - name: Offline tests
+        run: make test
+
+      - name: Check the scenarios
+        run: make check-scenarios

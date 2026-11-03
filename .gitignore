@@ -22,3 +22,7 @@ kubeconfig*
 # Local agent notes
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Pinned tools (scripts/install-tools.sh) and downloads
+/bin/
+/.cache/

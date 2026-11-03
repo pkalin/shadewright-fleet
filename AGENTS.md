@@ -9,6 +9,11 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   `flux-system`. This path holds no `flux-system` manifests of its own, only two Flux `Kustomization` objects:
   `infrastructure`, then `apps` (`dependsOn`), each with `prune: true` and `wait: true`. The extension enforces
   multi-tenancy, so every Flux object stays in `flux-system` and references sources in that namespace.
+- `clusters/kind/`: Flux entry point for a local or CI Kind cluster, the same two Kustomizations without
+  substitutions. `scripts/kind.sh` creates what the lab's Flux configuration creates there: the `GitRepository`
+  `fleet` and a Kustomization `kind` that applies this path. Nothing applied from `clusters/kind/` may need an Azure
+  value, so Azure-only parts (the Shadewright install with workload identity) go into a path only `clusters/lab`
+  applies.
 - `infrastructure/`: cluster add-ons and the namespaces `apps/` needs; later Shadewright itself (Helm chart from
   the operator repo).
   - `namespaces/`: the `demo` Namespace. It belongs to the demo workloads but lives here because infrastructure
@@ -28,8 +33,22 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   file and kustomizations with `resources` only, because the operator's source mapping (ADR-0012) supports plain
   manifests only; values the patchers change (memory limits, `maxReplicaCount`) stay literal. The worker has no
   `spec.replicas`: the HPA that KEDA creates owns it.
-- `scenarios/` (planned): one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod, broken KEDA trigger, invalid manifest), each with what breaks, the expected diagnosis and the expected PR, or the expected refusal.
-- `scripts/render.sh`: the render check, run by CI and locally.
+- `scenarios/`: one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod,
+  broken KEDA trigger, invalid manifest), each with a `README.md` (what breaks, the expected diagnosis and the
+  expected PR or refusal), an `expected.yaml` (schema in `scenarios/schema/`) and the broken versions of files
+  under `apps/demo/`, at `scenarios/<name>/apps/demo/<file>`. Layout and schema: `scenarios/README.md`.
+- `scripts/`: `render.sh` (the render check), `scenario.sh` (the scenario harness), `kind.sh` (the Kind cluster),
+  `install-tools.sh`, `lib.sh`, and `tools.env`, the one place every tool version and checksum is pinned.
+- `Makefile`: entry points, one script call each. `tests/`: offline tests of the scripts.
+
+## Scenarios (ADR-0022)
+
+Each cluster's Flux tracks its own branch, `cluster/kind` or `cluster/lab`, never `main`. `make scenario-<name>
+CLUSTER=kind|lab` commits `main`'s tree with the scenario's files over `apps/demo/` on top of that branch, and
+`make scenario-reset CLUSTER=kind|lab` commits `main`'s tree; both push fast-forwards only. The harness refuses
+unless the `GitRepository` `flux-system/fleet` in the current kube context tracks exactly `cluster/<CLUSTER>`. Never
+add a way for scripts here to write `main`, force-push, or create or delete a branch, and keep `push_cluster_branch`
+in `scripts/scenario.sh` the only `git push`.
 
 ## Rules
 
@@ -44,17 +63,25 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 ## Checks
 
 ```bash
-scripts/render.sh   # kustomize build of clusters/, infrastructure/, apps/, kubeconform -strict, Flux paths exist
+make tools            # pinned kustomize, kubeconform, kind, kubectl, shellcheck into bin/ (git-ignored)
+scripts/render.sh     # kustomize build of clusters/, infrastructure/, apps/, kubeconform -strict, Flux paths exist
+make lint test        # shellcheck and the offline tests of scripts/ (tests/)
+make check-scenarios  # every scenario: layout, expected.yaml against the schema, render as declared
 ```
 
-It needs `kustomize` and `kubeconform` on `PATH` (or `KUSTOMIZE=` and `KUBECONFORM=` pointing at them); CI pins both
-by version and checksum in `.github/workflows/render.yaml`. A new kustomization is picked up automatically.
+`render.sh` and the harness refuse kustomize and kubeconform versions other than those in `scripts/tools.env`;
+`bin/` comes first on `PATH`. A new kustomization is picked up automatically. Scripts must run on macOS bash 3.2 and
+GNU Make 3.81 as well as Linux, pass shellcheck, and come with offline tests.
 
 Rules on `main` (set in the ruleset by the maintainer; README, "Rules on `main`"): one approval of the most
 recent push, the repository admin role as the only bypass actor (pull requests only), never the App. Required checks:
 
 - `Conventional PR title` (`.github/workflows/pr-title.yml`).
 - `Render manifests` (`.github/workflows/render.yaml`): every kustomization under `clusters/`, `infrastructure/` and `apps/` renders and passes the schema check for the lab's Kubernetes version, and every Flux `path:` in `clusters/` exists. `scenarios/` (deliberately broken) is left out.
+
+Not required (yet): `Harness tests` (`.github/workflows/harness.yaml`: shellcheck, `tests/`, `make check-scenarios`)
+and `Kind baseline` (`.github/workflows/kind.yaml`: a Kind cluster with Flux on the commit under test, read-only,
+until the healthy baseline is Ready).
 
 ## Commits
 
