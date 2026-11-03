@@ -17,7 +17,7 @@
 #   FLEET_REF_NAME     a ref instead of a branch, such as refs/pull/12/head (CI on a pull request; read-only, and the
 #                      harness refuses to run because Flux then tracks no branch)
 #   EXPECT_COMMIT      for wait: the commit the GitRepository must have fetched
-#   WAIT_TIMEOUT       for wait: seconds per step, default 900
+#   WAIT_TIMEOUT       for wait: seconds per step (the revision poll included), default 900
 set -euo pipefail
 
 # shellcheck source=scripts/lib.sh
@@ -104,17 +104,28 @@ EOF
 
 # flux_manifest <out>: the release's install.yaml, checksum verified, with every controller image pinned by digest.
 flux_manifest() {
-  local out="$1" cache file work img var pin
+  local out="$1" cache file work img var pin got
   cache="${REPO_ROOT}/.cache"
   file="${cache}/flux-${FLUX_VERSION}-install.yaml"
   mkdir -p "$cache"
+  # Only a verified file is cached: the download is checked before it takes the cache name, and a cached file that
+  # no longer matches (an older pin, a corrupted disk) is removed, so the next run downloads it again.
+  if [ -f "$file" ] && [ "$(sha256_of "$file")" != "$FLUX_INSTALL_SHA256" ]; then
+    rm -f "$file"
+    log "removed a cached Flux manifest that does not match FLUX_INSTALL_SHA256"
+  fi
   if [ ! -f "$file" ]; then
     need curl
+    rm -f "${file}.tmp"
     curl -fsSL --proto '=https' --retry 3 -o "${file}.tmp" \
       "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/install.yaml"
+    got="$(sha256_of "${file}.tmp")"
+    if [ "$got" != "$FLUX_INSTALL_SHA256" ]; then
+      rm -f "${file}.tmp"
+      die "checksum mismatch for the Flux ${FLUX_VERSION} install.yaml: expected ${FLUX_INSTALL_SHA256}, got ${got}"
+    fi
     mv "${file}.tmp" "$file"
   fi
-  verify_sha256 "$file" "$FLUX_INSTALL_SHA256"
 
   work="$(mktemp -d)"
   cp "$file" "$work/install.yaml"
@@ -184,16 +195,25 @@ wait_ready() { # wait_ready <namespace> <resource> [condition]
 }
 
 cmd_wait() {
-  local rev ks
+  local rev ks i
   validate_inputs
+  if [ -n "${EXPECT_COMMIT:-}" ]; then
+    [[ "$EXPECT_COMMIT" =~ ^[0-9a-f]{40}$ ]] || die "EXPECT_COMMIT must be a full commit SHA"
+  fi
   need kubectl
   wait_ready flux-system gitrepository/fleet
   if [ -n "${EXPECT_COMMIT:-}" ]; then
-    rev="$(k -n flux-system get gitrepository fleet -o 'jsonpath={.status.artifact.revision}')"
-    case "$rev" in
-      *"sha1:${EXPECT_COMMIT}") log "Flux fetched ${rev}" ;;
-      *) die "Flux fetched ${rev:-nothing}, expected ${EXPECT_COMMIT}" ;;
-    esac
+    # Ready may still describe an earlier fetch: poll until the artifact is the expected commit.
+    i=0
+    while :; do
+      rev="$(k -n flux-system get gitrepository fleet -o 'jsonpath={.status.artifact.revision}' 2>/dev/null)" || rev=""
+      case "$rev" in
+        *"sha1:${EXPECT_COMMIT}") log "Flux fetched ${rev}"; break ;;
+      esac
+      [ "$i" -lt "$WAIT_TIMEOUT" ] || die "Flux fetched ${rev:-nothing} after ${WAIT_TIMEOUT}s, expected ${EXPECT_COMMIT}"
+      i=$((i + 5))
+      sleep 5
+    done
   fi
   for ks in kind infrastructure apps; do
     wait_ready flux-system "kustomization/${ks}"

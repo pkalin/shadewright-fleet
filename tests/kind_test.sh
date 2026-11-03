@@ -20,12 +20,26 @@ cat >"$STUBS/kubectl" <<'EOF'
 #!/usr/bin/env bash
 echo "kubectl $*" >>"$STUB_LOG"
 case " $* " in
-  *"{.status.artifact.revision}"*) printf '%s' "${STUB_REVISION:-}" ;;
+  *"{.status.artifact.revision}"*)
+    # STUB_STALE_READS reads of an earlier revision first, as right after Ready on an old fetch.
+    n="$(grep -c 'artifact.revision' "$STUB_LOG")"
+    if [ "$n" -le "${STUB_STALE_READS:-0}" ]; then printf 'main@sha1:%040d' 0; else printf '%s' "${STUB_REVISION:-}"; fi ;;
 esac
 exit 0
 EOF
+# Downloads give whatever STUB_DOWNLOAD holds, never the real release.
+cat >"$STUBS/curl" <<'EOF'
+#!/usr/bin/env bash
+echo "curl $*" >>"$STUB_LOG"
+while [ "$#" -gt 0 ]; do
+  case "$1" in -o) printf '%s' "${STUB_DOWNLOAD:-tampered}" >"$2"; shift ;; esac
+  shift
+done
+EOF
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUBS/docker"
-chmod +x "$STUBS/kind" "$STUBS/kubectl" "$STUBS/docker"
+# No real waiting in the polling loops.
+printf '#!/usr/bin/env bash\nexit 0\n' >"$STUBS/sleep"
+chmod +x "$STUBS/kind" "$STUBS/kubectl" "$STUBS/docker" "$STUBS/curl" "$STUBS/sleep"
 
 KIND="$SRC_ROOT/scripts/kind.sh"
 SHA=0123456789abcdef0123456789abcdef01234567
@@ -75,7 +89,40 @@ run env STUB_REVISION="refs/pull/12/head@sha1:${SHA}" EXPECT_COMMIT="$SHA" WAIT_
 expect_ok "wait accepts the expected revision" "baseline is Ready"
 check "wait waits for the demo ScaledObject" grep -q 'wait --for=condition=Ready scaledobject/worker' "$STUB_LOG"
 check "every kubectl call names the Kind context" sh -c "! grep '^kubectl' \"\$STUB_LOG\" | grep -vq -- '--context kind-shadewright '"
-run env STUB_REVISION="refs/pull/12/head@sha1:ffffffffffffffffffffffffffffffffffffffff" EXPECT_COMMIT="$SHA" "$KIND" wait
-expect_fail "wait refuses another revision" "expected ${SHA}"
+: >"$STUB_LOG"
+run env STUB_REVISION="refs/pull/12/head@sha1:${SHA}" STUB_STALE_READS=2 EXPECT_COMMIT="$SHA" WAIT_TIMEOUT=60 "$KIND" wait
+expect_ok "wait polls until Flux has fetched the expected commit" "Flux fetched refs/pull/12/head@sha1:${SHA}"
+check "it read the revision three times" test "$(grep -c 'artifact.revision' "$STUB_LOG")" = 3
+: >"$STUB_LOG"
+run env STUB_REVISION="refs/pull/12/head@sha1:ffffffffffffffffffffffffffffffffffffffff" EXPECT_COMMIT="$SHA" WAIT_TIMEOUT=20 "$KIND" wait
+expect_fail "wait refuses another revision once WAIT_TIMEOUT runs out" "after 20s, expected ${SHA}"
+check "it polled until then" test "$(grep -c 'artifact.revision' "$STUB_LOG")" = 5
+run env EXPECT_COMMIT=abc "$KIND" wait
+expect_fail "wait refuses a short EXPECT_COMMIT" "EXPECT_COMMIT must be a full commit SHA"
+
+# --- the Flux manifest is cached only after its checksum matches ---------------------------------------------------------
+
+# A copy of the scripts in a scratch repository, so .cache/ of the real checkout is never touched.
+KREPO="$T/kindrepo"
+mkdir -p "$KREPO/scripts"
+cp "$SRC_ROOT"/scripts/*.sh "$SRC_ROOT/scripts/tools.env" "$KREPO/scripts/"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$STUBS/kustomize"
+chmod +x "$STUBS/kustomize"
+git init -q "$KREPO"
+. "$SRC_ROOT/scripts/tools.env"
+CACHED="$KREPO/.cache/flux-${FLUX_VERSION}-install.yaml"
+: >"$STUB_LOG"
+run "$KREPO/scripts/kind.sh" up
+expect_fail "up refuses a Flux manifest with the wrong checksum" "checksum mismatch for the Flux ${FLUX_VERSION} install.yaml"
+check "the bad download is not cached" test ! -e "$CACHED"
+check "nor left behind as a temporary file" test ! -e "${CACHED}.tmp"
+check "nothing was applied" sh -c "! grep -q 'kubectl .* apply' \"\$STUB_LOG\""
+mkdir -p "${CACHED%/*}"
+printf 'tampered\n' >"$CACHED"
+: >"$STUB_LOG"
+run "$KREPO/scripts/kind.sh" up
+expect_fail "a cached manifest that does not match is not used" "removed a cached Flux manifest"
+check "it was downloaded again" grep -q '^curl ' "$STUB_LOG"
+check "and the bad copy is gone" test ! -e "$CACHED"
 
 finish

@@ -20,16 +20,32 @@ make kind-down
 from another commit (a local branch with a scenario that is not merged yet; `apps/` still comes from
 `origin/main`); `RECONCILE=0` skips asking Flux to fetch at once.
 
+## Before the first run
+
+The harness refuses to run until the cluster tracks its own branch. Neither prerequisite is done by this
+repository's scripts:
+
+- **Both clusters:** the maintainer has created `cluster/kind` and `cluster/lab` on the remote from `main`, with their
+  rulesets (ADR-0022, decision 5). The harness never creates a branch.
+- **Kind:** nothing else. `make kind-up` points the Kind cluster's Flux at `cluster/kind` (`FLEET_BRANCH`).
+- **Lab:** the lab's Flux configuration comes from `shadewright-azure` (`lab/flux.tf`), and its branch is
+  `var.fleet_branch`, which defaults to `main`. Until `fleet_branch = "cluster/lab"` is set in the lab's git-ignored
+  `terraform.tfvars` and applied (plan first, then an explicit yes), the lab's `GitRepository` tracks `main`, and
+  `CLUSTER=lab` is refused with `tracks 'main', not cluster/lab`, on purpose: a scenario must never reach `main`.
+  The lab is disposable, so the setting stays in `terraform.tfvars` for every new session. Then switch the kube
+  context to the lab before `make scenario-<name> CLUSTER=lab`.
+
 ## What the harness does
 
 Each cluster's Flux tracks its own branch, `cluster/<cluster>`, never `main`. `make scenario-<name> CLUSTER=<c>`:
 
 1. reads the branch from the `GitRepository` `flux-system/fleet` in the current kube context, and refuses unless it
-   is exactly `cluster/<c>`, a valid branch name under `cluster/`, with no tag, semver, ref name or commit pinned,
+   is exactly `cluster/<c>` (`<c>` is `kind` or `lab`), with no tag, semver, ref name or commit pinned,
    and the `GitRepository` URL is the same repository as the Git remote (`origin`, or `FLEET_REMOTE`);
 2. refuses if `cluster/<c>` does not exist on the remote: the maintainer creates cluster branches and their rulesets;
 3. builds a tree from the current `origin/main` with the scenario's files copied over `apps/demo/` (only paths under
-   `scenarios/<name>/apps/demo/`; anything else in the folder besides `README.md` and `expected.yaml` is refused);
+   `scenarios/<name>/apps/demo/`; anything else in the folder besides `README.md` and `expected.yaml` is refused, and
+   so is a file that is not on `main` unless the scenario's own `kustomization.yaml` lists it, see Layout);
 4. renders `apps/` of that tree with the pinned kustomize and kubeconform (`scripts/tools.env`, the versions of
    `scripts/render.sh`), and refuses unless the result matches the scenario's `render` (see below);
 5. commits the tree on top of the head of `cluster/<c>` and pushes it as a fast-forward, never a force push; a tree
@@ -53,8 +69,9 @@ scenarios/
 ```
 
 `<name>` is lower case letters, digits and hyphens (not `schema`, `list`, `reset` or `check`) and is the make
-target: `make scenario-<name>`. A scenario replaces whole files: to add an object, include the changed
-`apps/demo/kustomization.yaml` too. Keep the broken object a plain manifest that `apps` applies, so the operator's
+target: `make scenario-<name>`. A scenario replaces whole files. A file that does not exist on `main` would be
+ignored by kustomize, so the harness refuses it unless the scenario also replaces the `kustomization.yaml` of the same
+directory and lists the file there (a list item that is exactly the file name); a scenario adds no directories. Keep the broken object a plain manifest that `apps` applies, so the operator's
 source mapping (ADR-0012) can map it. A scenario that expects a pull request must break the very field the action
 patches, so a reset changes it back and an open request becomes `Superseded`. Any deliberate break of the
 restricted profile is explained in the scenario's README.
@@ -62,7 +79,10 @@ restricted profile is explained in the scenario's README.
 ## expected.yaml
 
 Checked against `schema/scenario_v1alpha1.json` with kubeconform (`make check-scenarios`, and by the harness before
-every switch). Example:
+every switch). `make check-scenarios` checks the scenarios of the `HEAD` commit and renders each on `HEAD`'s own
+`apps/`, the tree the harness builds once that commit is on `main`; uncommitted changes are not checked. The harness
+reads `name`, `summary` and `render` itself, so write them as plain one-line values (quotes are fine); a block scalar,
+anchor, tag or escaped value there is refused rather than guessed. Example:
 
 ```yaml
 apiVersion: scenarios.shadewright.io/v1alpha1

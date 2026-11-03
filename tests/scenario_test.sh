@@ -18,9 +18,8 @@ case "$args" in
   *" get gitrepository fleet "*)
     [ "${STUB_NO_GITREPO:-0}" = 0 ] || { echo 'Error from server (NotFound)' >&2; exit 1; }
     case "$args" in
-      *"{.spec.ref.branch}"*) printf '%s' "${STUB_BRANCH-cluster/kind}" ;;
-      *"{.spec.ref.tag}"*) printf '%s' "${STUB_OTHER-}" ;;
-      *"{.spec.url}"*) printf '%s' "${STUB_URL}" ;;
+      *'{.spec.ref.branch}{"\n"}{.spec.ref.tag}{.spec.ref.semver}{.spec.ref.name}{.spec.ref.commit}{"\n"}{.spec.url}'*)
+        printf '%s\n%s\n%s' "${STUB_BRANCH-cluster/kind}" "${STUB_OTHER-}" "${STUB_URL}" ;;
       *) exit 1 ;;
     esac
     exit 0 ;;
@@ -128,6 +127,27 @@ scenario misnamed
 sed 's/^name: misnamed$/name: someone-else/' scenarios/misnamed/expected.yaml >"$T/x" && mv "$T/x" scenarios/misnamed/expected.yaml
 mkdir -p scenarios/no-readme
 expected no-readme >scenarios/no-readme/expected.yaml
+# New files under apps/demo/: only with the scenario's own kustomization.yaml that lists them.
+scenario new-file
+mkdir -p scenarios/new-file/apps/demo
+printf 'kind: ConfigMap\n' >scenarios/new-file/apps/demo/extra.yaml
+scenario new-unlisted
+mkdir -p scenarios/new-unlisted/apps/demo
+printf 'kind: ConfigMap\n' >scenarios/new-unlisted/apps/demo/extra.yaml
+printf 'resources:\n  - web.yaml\n  - worker.yaml\n  # - extra.yaml\n' >scenarios/new-unlisted/apps/demo/kustomization.yaml
+scenario new-dir
+mkdir -p scenarios/new-dir/apps/demo/sub
+printf 'kind: ConfigMap\n' >scenarios/new-dir/apps/demo/sub/extra.yaml
+printf 'resources:\n  - web.yaml\n  - worker.yaml\n  - sub\n' >scenarios/new-dir/apps/demo/kustomization.yaml
+scenario new-listed
+mkdir -p scenarios/new-listed/apps/demo
+printf 'kind: ConfigMap\n' >scenarios/new-listed/apps/demo/extra.yaml
+printf 'resources:\n  - web.yaml\n  - worker.yaml\n  - "extra.yaml" # added\n' >scenarios/new-listed/apps/demo/kustomization.yaml
+# expected.yaml forms the harness cannot read exactly are refused, never guessed.
+scenario block-render '' "$(printf 'render: >-\n  fails')"
+scenario quoted
+sed -e "s/^name: quoted$/name: 'quoted' # the folder/" -e 's/^summary: .*/summary: "a value # with a hash"/' \
+  scenarios/quoted/expected.yaml >"$T/x" && mv "$T/x" scenarios/quoted/expected.yaml
 
 git add -A
 git commit -q -m init
@@ -164,7 +184,12 @@ expect_fail "a GitRepository on a ref, not a branch (CI baseline), is refused" "
 run env CLUSTER=kind STUB_OTHER=0123456789012345678901234567890123456789 scripts/scenario.sh apply good
 expect_fail "a branch pinned to a commit is refused" "pins a tag, semver, ref name or commit"
 run env CLUSTER=kind STUB_URL=https://github.com/someone/else scripts/scenario.sh apply good
-expect_fail "a cluster syncing another repository is refused" "the cluster syncs https://github.com/someone/else"
+expect_fail "a cluster syncing another repository is refused" "the cluster syncs github.com/someone/else"
+git remote set-url origin "https://user:s3cret-token@github.com/pkalin/shadewright-fleet.git"
+run env CLUSTER=kind STUB_URL=https://github.com/someone/else scripts/scenario.sh apply good
+expect_fail "a remote URL mismatch is refused" "but remote origin is github.com/pkalin/shadewright-fleet: refusing"
+check "the refusal never prints the remote's credentials" sh -c "! printf '%s' \"\$1\" | grep -q 's3cret-token'" _ "$OUT"
+git remote set-url origin "$REMOTE_DIR"
 run env CLUSTER=kind STUB_NO_GITREPO=1 scripts/scenario.sh reset
 expect_fail "a context without the fleet GitRepository is refused" "cannot read GitRepository"
 run env CLUSTER=kind STUB_CONTEXT= scripts/scenario.sh reset
@@ -185,7 +210,11 @@ check "refusals left main and cluster/lab alone" untouched
 for case_ in "outside:is outside apps/demo/" "linked:is not a regular file" "extra-field:does not match" \
   "misnamed:name must be misnamed" "no-readme:README.md is missing" \
   "undeclared:render fails, but its expected.yaml says render: passes" \
-  "says-fails:render passes, but its expected.yaml says render: fails"; do
+  "says-fails:render passes, but its expected.yaml says render: fails" \
+  "new-file:apps/demo/extra.yaml is new: the scenario must also replace apps/demo/kustomization.yaml" \
+  "new-unlisted:kustomization.yaml does not list extra.yaml" \
+  "new-dir:apps/demo/sub/ does not exist on the base commit" \
+  "block-render:cannot read render"; do
   name="${case_%%:*}"
   run env CLUSTER=kind scripts/scenario.sh apply "$name"
   expect_fail "scenario ${name} is refused" "${case_#*:}"
@@ -193,6 +222,11 @@ done
 run env CLUSTER=kind scripts/scenario.sh apply missing
 expect_fail "an unknown scenario is refused" "no scenario missing on origin/main"
 check "refused scenarios pushed nothing" test "$(remote_ref cluster/kind)" = "$KIND0"
+
+run env CLUSTER=kind DRY_RUN=1 scripts/scenario.sh apply new-listed
+expect_ok "a new file listed in the scenario's kustomization.yaml is accepted" "not pushed"
+run env CLUSTER=kind DRY_RUN=1 scripts/scenario.sh apply quoted
+expect_ok "quoted values with a comment are read exactly" "nothing to push"
 
 # --- a missing cluster branch is never created ------------------------------------------------------------------------
 
@@ -282,19 +316,27 @@ git checkout -q main
 
 run scripts/scenario.sh list
 expect_ok "list shows scenarios with their summary" "good +test scenario good"
+check "list reads a quoted summary with ' #' whole" sh -c "printf '%s' \"\$1\" | grep -q 'quoted  *a value # with a hash$'" _ "$OUT"
 check "list skips the schema folder" sh -c "! printf '%s' \"\$1\" | grep -q '^  schema'" _ "$OUT"
 
 run scripts/scenario.sh check
 expect_fail "check reports every broken fixture, not only the first" "scenarios/outside/infrastructure/x.yaml is outside apps/demo/"
-git rm -rq scenarios/outside scenarios/linked scenarios/extra-field scenarios/misnamed scenarios/no-readme
+check "check reports the later ones too" sh -c "printf '%s' \"\$1\" | grep -q 'new-dir/apps/demo/sub/extra.yaml'" _ "$OUT"
+git rm -rq scenarios/outside scenarios/linked scenarios/extra-field scenarios/misnamed scenarios/no-readme \
+  scenarios/new-file scenarios/new-unlisted scenarios/new-dir scenarios/block-render
+git commit -q -m "drop the invalid fixtures"
 run scripts/scenario.sh check
 expect_ok "check passes on valid scenarios" "== scenarios/good"
 run scripts/scenario.sh check --render
 expect_fail "check --render finds render mismatches" "scenario says-fails: render passes"
 git rm -rq scenarios/says-fails scenarios/undeclared
+git commit -q -m "drop the render mismatches"
 run scripts/scenario.sh check --render
 expect_ok "check --render passes when every render matches its declaration"
-git reset -q --hard
+printf 'kind: Deployment\nshadewright-test: invalid\n' >apps/demo/web.yaml
+run scripts/scenario.sh check --render
+expect_ok "check renders the committed tree, not the working tree" "uncommitted changes under scenarios/ or apps/ are not checked"
+git reset -q --hard "$MAIN0"
 
 # --- the scripts never force-push and push in one place only ----------------------------------------------------------
 

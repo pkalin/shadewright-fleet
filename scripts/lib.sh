@@ -105,17 +105,17 @@ pinned() {
   printf '%s\n' "$value"
 }
 
-# normalize_git_url <url>: host/owner/repo, lower case, for comparing a Flux URL with a Git remote.
-# https://github.com/o/r(.git), ssh://git@github.com/o/r and git@github.com:o/r.git all give github.com/o/r.
+# normalize_git_url <url>: host/owner/repo, lower case, for comparing a Flux URL with a Git remote, and the only form
+# of a URL the scripts print. https://github.com/o/r(.git), ssh://git@github.com/o/r and git@github.com:o/r.git all
+# give github.com/o/r. Userinfo (a user name, a token or a password) is dropped from the host part.
 normalize_git_url() {
-  local u="$1"
+  local u="$1" host
   case "$u" in
     *://*) u="${u#*://}" ;;
     *@*:*) u="${u#*@}"; u="${u%%:*}/${u#*:}" ;;
   esac
-  case "$u" in
-    *@*/*) u="${u#*@}" ;;
-  esac
+  host="${u%%/*}"
+  u="${host##*@}${u#"$host"}"
   u="${u%/}"
   u="${u%.git}"
   printf '%s\n' "$u" | tr '[:upper:]' '[:lower:]'
