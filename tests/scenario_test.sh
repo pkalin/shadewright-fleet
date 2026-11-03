@@ -1,0 +1,306 @@
+#!/usr/bin/env bash
+# Offline tests of scripts/scenario.sh against a fixture repository with a local bare remote and stubbed kubectl and
+# render tools. Each test checks what reached the remote: main and the other cluster's branch must never move.
+set -euo pipefail
+
+# shellcheck source=tests/lib.sh
+. "$(dirname "$0")/lib.sh"
+
+# --- stubs -----------------------------------------------------------------------------------------------------------
+
+cat >"$STUBS/kubectl" <<'EOF'
+#!/usr/bin/env bash
+echo "kubectl $*" >>"$STUB_LOG"
+args=" $* "
+case "$args" in
+  *" config current-context "*) echo "${STUB_CONTEXT-kind-test}"; exit 0 ;;
+  *" annotate "*) exit 0 ;;
+  *" get gitrepository fleet "*)
+    [ "${STUB_NO_GITREPO:-0}" = 0 ] || { echo 'Error from server (NotFound)' >&2; exit 1; }
+    case "$args" in
+      *"{.spec.ref.branch}"*) printf '%s' "${STUB_BRANCH-cluster/kind}" ;;
+      *"{.spec.ref.tag}"*) printf '%s' "${STUB_OTHER-}" ;;
+      *"{.spec.url}"*) printf '%s' "${STUB_URL}" ;;
+      *) exit 1 ;;
+    esac
+    exit 0 ;;
+esac
+echo "unexpected kubectl call: $*" >&2
+exit 1
+EOF
+
+cat >"$STUBS/kustomize" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  version) echo "${STUB_KUSTOMIZE_VERSION:-v5.8.1}"; exit 0 ;;
+  build)
+    if grep -rqs 'shadewright-test: unbuildable' "$2"; then echo "build failed" >&2; exit 1; fi
+    find "$2" -name '*.yaml' ! -name kustomization.yaml | sort | while IFS= read -r f; do cat "$f"; echo '---'; done
+    exit 0 ;;
+esac
+exit 1
+EOF
+
+# Validates expected.yaml with the real kubeconform (local schema); a render passes unless it holds the marker.
+cat >"$STUBS/kubeconform" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in
+  *" -v "*) echo "${STUB_KUBECONFORM_VERSION:-v0.8.0}"; exit 0 ;;
+  *"scenarios/schema/"*) exec "$REAL_KUBECONFORM" "$@" ;;
+esac
+in="$(cat)"
+if printf '%s' "$in" | grep -q 'shadewright-test: invalid'; then echo "invalid resource" >&2; exit 1; fi
+echo "Summary: stub - Valid"
+EOF
+chmod +x "$STUBS/kubectl" "$STUBS/kustomize" "$STUBS/kubeconform"
+
+# --- fixture ---------------------------------------------------------------------------------------------------------
+
+REMOTE_DIR="$T/remote.git"
+WORK="$T/work"
+export STUB_URL="file://${REMOTE_DIR}"
+
+expected() { # expected <name> [render] [extra top-level line]
+  cat <<EOF
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: $1
+summary: test scenario $1
+EOF
+  [ -z "${2:-}" ] || echo "render: $2"
+  cat <<EOF
+incident:
+  reason: OOMKilled
+  object:
+    apiVersion: apps/v1
+    kind: Deployment
+    namespace: demo
+    name: web
+diagnosis:
+  evidence:
+    - OOMKilled
+outcome:
+  type: refusal
+  reason: test
+EOF
+  [ -z "${3:-}" ] || echo "$3"
+}
+
+scenario() { # scenario <name> [render] [extra]: README and expected.yaml
+  mkdir -p "scenarios/$1"
+  echo "# $1" >"scenarios/$1/README.md"
+  expected "$@" >"scenarios/$1/expected.yaml"
+}
+
+git init -q --bare "$REMOTE_DIR"
+git init -q "$WORK"
+cd "$WORK"
+mkdir -p scripts apps/demo scenarios
+cp "$SRC_ROOT"/scripts/*.sh "$SRC_ROOT/scripts/tools.env" scripts/
+cp -R "$SRC_ROOT/scenarios/schema" scenarios/schema
+printf 'resources:\n  - demo\n' >apps/kustomization.yaml
+printf 'resources:\n  - web.yaml\n  - worker.yaml\n' >apps/demo/kustomization.yaml
+printf 'kind: Deployment\nmetadata:\n  name: web\n# healthy\n' >apps/demo/web.yaml
+printf 'kind: Deployment\nmetadata:\n  name: worker\n# healthy\n' >apps/demo/worker.yaml
+echo 'outside' >README.md
+
+scenario good
+mkdir -p scenarios/good/apps/demo
+printf 'kind: Deployment\nmetadata:\n  name: web\n# broken by good\n' >scenarios/good/apps/demo/web.yaml
+scenario other
+mkdir -p scenarios/other/apps/demo
+printf 'kind: Deployment\nmetadata:\n  name: worker\n# broken by other\n' >scenarios/other/apps/demo/worker.yaml
+scenario invalid fails
+mkdir -p scenarios/invalid/apps/demo
+printf 'kind: Deployment\nshadewright-test: invalid\n' >scenarios/invalid/apps/demo/web.yaml
+scenario undeclared
+mkdir -p scenarios/undeclared/apps/demo
+printf 'kind: Deployment\nshadewright-test: invalid\n' >scenarios/undeclared/apps/demo/web.yaml
+scenario says-fails fails
+scenario outside
+mkdir -p scenarios/outside/infrastructure
+echo 'kind: Namespace' >scenarios/outside/infrastructure/x.yaml
+scenario linked
+mkdir -p scenarios/linked/apps/demo
+ln -s ../../../../README.md scenarios/linked/apps/demo/web.yaml
+scenario extra-field '' 'unexpected: true'
+scenario misnamed
+sed 's/^name: misnamed$/name: someone-else/' scenarios/misnamed/expected.yaml >"$T/x" && mv "$T/x" scenarios/misnamed/expected.yaml
+mkdir -p scenarios/no-readme
+expected no-readme >scenarios/no-readme/expected.yaml
+
+git add -A
+git commit -q -m init
+git branch -M main
+git remote add origin "$REMOTE_DIR"
+git push -q origin main main:cluster/kind main:cluster/lab
+MAIN0="$(git rev-parse main)"
+
+remote_ref() { git --git-dir "$REMOTE_DIR" rev-parse --verify --quiet "refs/heads/$1" || echo none; }
+harness() { scripts/scenario.sh "$@"; }
+
+untouched() { # main and cluster/lab never move in any test
+  [ "$(remote_ref main)" = "$MAIN0" ] && [ "$(remote_ref cluster/lab)" = "$MAIN0" ]
+}
+
+# --- refusals before Git is touched -----------------------------------------------------------------------------------
+
+run harness apply good
+expect_fail "apply without CLUSTER is refused" "set the cluster explicitly"
+run env CLUSTER=main scripts/scenario.sh apply good
+expect_fail "CLUSTER=main is refused" "unknown cluster 'main'"
+run env CLUSTER=prod scripts/scenario.sh reset
+expect_fail "an unknown cluster is refused" "unknown cluster 'prod'"
+
+KIND0="$(remote_ref cluster/kind)"
+run env CLUSTER=kind STUB_BRANCH=main scripts/scenario.sh apply good
+expect_fail "Flux tracking main is refused" "tracks 'main', not cluster/kind"
+run env CLUSTER=kind STUB_BRANCH=cluster/lab scripts/scenario.sh reset
+expect_fail "Flux tracking another cluster's branch is refused" "tracks 'cluster/lab', not cluster/kind"
+run env CLUSTER=lab STUB_BRANCH=cluster/kind scripts/scenario.sh apply good
+expect_fail "CLUSTER=lab on the Kind context is refused" "tracks 'cluster/kind', not cluster/lab"
+run env CLUSTER=kind STUB_BRANCH= STUB_OTHER=refs/pull/7/head scripts/scenario.sh apply good
+expect_fail "a GitRepository on a ref, not a branch (CI baseline), is refused" "tracks no branch"
+run env CLUSTER=kind STUB_OTHER=0123456789012345678901234567890123456789 scripts/scenario.sh apply good
+expect_fail "a branch pinned to a commit is refused" "pins a tag, semver, ref name or commit"
+run env CLUSTER=kind STUB_URL=https://github.com/someone/else scripts/scenario.sh apply good
+expect_fail "a cluster syncing another repository is refused" "the cluster syncs https://github.com/someone/else"
+run env CLUSTER=kind STUB_NO_GITREPO=1 scripts/scenario.sh reset
+expect_fail "a context without the fleet GitRepository is refused" "cannot read GitRepository"
+run env CLUSTER=kind STUB_CONTEXT= scripts/scenario.sh reset
+expect_fail "no current context is refused" "no current kube context"
+run env CLUSTER=kind STUB_KUSTOMIZE_VERSION=v5.0.0 scripts/scenario.sh apply good
+expect_fail "another kustomize version is refused" "kustomize must be v5.8.1"
+run env CLUSTER=kind STUB_KUBECONFORM_VERSION=v0.6.0 scripts/scenario.sh apply good
+expect_fail "another kubeconform version is refused" "kubeconform must be v0.8.0"
+for bad in ../good list schema Good 'a b' -x; do
+  run env CLUSTER=kind scripts/scenario.sh apply "$bad"
+  expect_fail "scenario name '${bad}' is refused" "invalid scenario name"
+done
+check "refusals pushed nothing" test "$(remote_ref cluster/kind)" = "$KIND0"
+check "refusals left main and cluster/lab alone" untouched
+
+# --- scenario contents ------------------------------------------------------------------------------------------------
+
+for case_ in "outside:is outside apps/demo/" "linked:is not a regular file" "extra-field:does not match" \
+  "misnamed:name must be misnamed" "no-readme:README.md is missing" \
+  "undeclared:render fails, but its expected.yaml says render: passes" \
+  "says-fails:render passes, but its expected.yaml says render: fails"; do
+  name="${case_%%:*}"
+  run env CLUSTER=kind scripts/scenario.sh apply "$name"
+  expect_fail "scenario ${name} is refused" "${case_#*:}"
+done
+run env CLUSTER=kind scripts/scenario.sh apply missing
+expect_fail "an unknown scenario is refused" "no scenario missing on origin/main"
+check "refused scenarios pushed nothing" test "$(remote_ref cluster/kind)" = "$KIND0"
+
+# --- a missing cluster branch is never created ------------------------------------------------------------------------
+
+git --git-dir "$REMOTE_DIR" update-ref -d refs/heads/cluster/kind
+run env CLUSTER=kind scripts/scenario.sh reset
+expect_fail "a missing cluster branch is refused" "cluster/kind does not exist on origin"
+check "the missing branch was not created" test "$(remote_ref cluster/kind)" = none
+git --git-dir "$REMOTE_DIR" update-ref refs/heads/cluster/kind "$MAIN0"
+
+# --- switching on and resetting ---------------------------------------------------------------------------------------
+
+run env CLUSTER=kind DRY_RUN=1 scripts/scenario.sh apply good
+expect_ok "DRY_RUN builds the commit" "not pushed"
+check "DRY_RUN pushed nothing" test "$(remote_ref cluster/kind)" = "$MAIN0"
+
+: >"$STUB_LOG"
+run env CLUSTER=kind scripts/scenario.sh apply good
+expect_ok "scenario good is switched on" "pushed"
+K1="$(remote_ref cluster/kind)"
+git fetch -q origin
+check "the scenario commit is a child of the old branch head" test "$(git rev-parse "${K1}^")" = "$MAIN0"
+check "the scenario commit has one parent" test "$(git rev-list --parents -n 1 "$K1" | wc -w | tr -d ' ')" = 2
+check "the scenario's file replaces apps/demo/web.yaml" \
+  test "$(git show "${K1}:apps/demo/web.yaml")" = "$(git show "${MAIN0}:scenarios/good/apps/demo/web.yaml")"
+check "everything else equals main" test -z "$(git diff --name-only "$MAIN0" "$K1" -- . ':!apps/demo/web.yaml')"
+check "the commit records the scenario" sh -c "git log -1 --format=%B '$K1' | grep -q '^Scenario: good$'"
+check "Flux is asked to fetch, on the same context" grep -q 'kubectl --context kind-test -n flux-system annotate --overwrite gitrepository fleet' "$STUB_LOG"
+
+run env CLUSTER=kind scripts/scenario.sh apply good
+expect_ok "switching on the same scenario again is a no-op" "nothing to push"
+check "the no-op pushed nothing" test "$(remote_ref cluster/kind)" = "$K1"
+
+run env CLUSTER=kind RECONCILE=0 scripts/scenario.sh apply other
+expect_ok "another scenario replaces the first" "pushed"
+K2="$(remote_ref cluster/kind)"
+git fetch -q origin
+check "only the second scenario differs from main" test "$(git diff --name-only "$MAIN0" "$K2")" = "apps/demo/worker.yaml"
+check "the second commit is a child of the first" test "$(git rev-parse "${K2}^")" = "$K1"
+
+run env CLUSTER=kind scripts/scenario.sh apply invalid
+expect_ok "a scenario that declares render: fails is switched on" "pushed"
+K3="$(remote_ref cluster/kind)"
+
+run env CLUSTER=kind scripts/scenario.sh reset
+expect_ok "reset pushes main's tree" "pushed"
+K4="$(remote_ref cluster/kind)"
+git fetch -q origin
+check "the reset commit is a child of the scenario commit" test "$(git rev-parse "${K4}^")" = "$K3"
+check "the reset commit holds main's tree" test "$(git rev-parse "${K4}^{tree}")" = "$(git rev-parse "${MAIN0}^{tree}")"
+run env CLUSTER=kind scripts/scenario.sh reset
+expect_ok "a second reset is a no-op" "nothing to push"
+check "the second reset pushed nothing" test "$(remote_ref cluster/kind)" = "$K4"
+check "cluster/kind only moved forward" git --git-dir "$REMOTE_DIR" merge-base --is-ancestor "$MAIN0" "$K4"
+
+# --- the lab's branch, and an SSH remote URL against Flux's HTTPS URL --------------------------------------------------
+
+run env CLUSTER=lab STUB_BRANCH=cluster/lab STUB_CONTEXT=lab-admin scripts/scenario.sh apply good
+expect_ok "CLUSTER=lab writes cluster/lab" "pushed"
+check "CLUSTER=lab left cluster/kind alone" test "$(remote_ref cluster/kind)" = "$K4"
+check "CLUSTER=lab left main alone" test "$(remote_ref main)" = "$MAIN0"
+run env CLUSTER=lab STUB_BRANCH=cluster/lab scripts/scenario.sh reset
+expect_ok "reset on the lab" "pushed"
+check "the lab is back on main's tree" test "$(git --git-dir "$REMOTE_DIR" rev-parse "cluster/lab^{tree}")" = "$(git rev-parse "${MAIN0}^{tree}")"
+
+# --- SCENARIO_REF: a scenario that is not on main yet ------------------------------------------------------------------
+
+git checkout -q -b wip
+scenario wip-only
+mkdir -p scenarios/wip-only/apps/demo
+printf 'kind: Deployment\nmetadata:\n  name: web\n# broken by wip\n' >scenarios/wip-only/apps/demo/web.yaml
+printf 'not on main\n' >apps/demo/web.yaml
+git add -A
+git commit -q -m wip
+run env CLUSTER=kind scripts/scenario.sh apply wip-only
+expect_fail "a scenario only on a local branch needs SCENARIO_REF" "no scenario wip-only on origin/main"
+run env CLUSTER=kind SCENARIO_REF=wip scripts/scenario.sh apply wip-only
+expect_ok "SCENARIO_REF reads the scenario from a local commit" "pushed"
+K5="$(remote_ref cluster/kind)"
+git fetch -q origin
+check "apps/ still comes from origin/main" test "$(git show "${K5}:apps/demo/worker.yaml")" = "$(git show "${MAIN0}:apps/demo/worker.yaml")"
+check "only the scenario's file differs from main" test "$(git diff --name-only "$MAIN0" "$K5")" = "apps/demo/web.yaml"
+run env CLUSTER=kind scripts/scenario.sh reset
+expect_ok "reset after a SCENARIO_REF scenario" "pushed"
+git checkout -q main
+
+# --- list and check ---------------------------------------------------------------------------------------------------
+
+run scripts/scenario.sh list
+expect_ok "list shows scenarios with their summary" "good +test scenario good"
+check "list skips the schema folder" sh -c "! printf '%s' \"\$1\" | grep -q '^  schema'" _ "$OUT"
+
+run scripts/scenario.sh check
+expect_fail "check reports every broken fixture, not only the first" "scenarios/outside/infrastructure/x.yaml is outside apps/demo/"
+git rm -rq scenarios/outside scenarios/linked scenarios/extra-field scenarios/misnamed scenarios/no-readme
+run scripts/scenario.sh check
+expect_ok "check passes on valid scenarios" "== scenarios/good"
+run scripts/scenario.sh check --render
+expect_fail "check --render finds render mismatches" "scenario says-fails: render passes"
+git rm -rq scenarios/says-fails scenarios/undeclared
+run scripts/scenario.sh check --render
+expect_ok "check --render passes when every render matches its declaration"
+git reset -q --hard
+
+# --- the scripts never force-push and push in one place only ----------------------------------------------------------
+
+pushes="$(grep -nE '(^|[^-])git[[:space:]]+push' "$SRC_ROOT"/scripts/*.sh | grep -v '^[^:]*:[0-9]*:[[:space:]]*#' || true)"
+check "one git push in scripts/" test "$(printf '%s\n' "$pushes" | grep -c .)" = 1
+check "no force push" sh -c "! printf '%s' \"\$1\" | grep -qE -- '--force|-f[[:space:]]|[[:space:]]\"?\+'" _ "$pushes"
+check "main ends where it started" test "$(remote_ref main)" = "$MAIN0"
+
+finish

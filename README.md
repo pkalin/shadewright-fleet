@@ -11,19 +11,27 @@ clusters/lab/           Flux entry point, applied by the Flux configuration from
   kustomization.yaml
   infrastructure.yaml   Flux Kustomization for infrastructure/
   apps.yaml             Flux Kustomization for apps/, after infrastructure is ready
+clusters/kind/          the same for a Kind cluster (scripts/kind.sh), without Azure substitutions
 infrastructure/         cluster add-ons and the namespaces apps/ needs (Shadewright later)
   namespaces/           the demo Namespace, created before anything binds in it
   keda/                 KEDA (upstream chart, one replica per component)
   prometheus/           minimal Prometheus: server, kube-state-metrics, kubelet and cAdvisor, 24h retention
 apps/                   demo workloads the scenarios break
   demo/                 web (podinfo) and worker (podinfo scaled by a KEDA ScaledObject on a Prometheus query)
+scenarios/              reproducible incidents: the broken files, what breaks and what Shadewright must conclude
 scripts/render.sh       render check: kustomize build and kubeconform on what Flux applies
+scripts/scenario.sh     scenario harness: make scenario-<name> and scenario-reset CLUSTER=kind|lab
+scripts/kind.sh         Kind cluster with Flux pointed at this repository: make kind-up, kind-wait, kind-down
+scripts/tools.env       every pinned tool version and checksum (make tools installs them into bin/)
 ```
 
 Environment values (tenant and identity client IDs, endpoints, the operator namespace) are never in this
 repository: they arrive as Flux `postBuild` substitutions (`${VAR}`) from the lab's Terraform.
 
 ## Checks
+
+Scenarios are switched on with one commit on the cluster's own branch (`cluster/kind`, `cluster/lab`), never on
+`main`; see [scenarios/README.md](scenarios/README.md).
 
 Every pull request runs `Render manifests`: each kustomization Flux applies must build and pass
 `kubeconform -strict` with the Flux CRD schemas, and every Flux `path:` must exist. Run the same check locally

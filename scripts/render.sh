@@ -2,22 +2,18 @@
 # Renders every kustomization that Flux applies (clusters/, infrastructure/, apps/) and validates the output against the Kubernetes and
 # Flux schemas. CI runs this script (.github/workflows/render.yaml); run it locally before a pull request.
 #
-#   scripts/render.sh                  # uses kustomize and kubeconform from PATH
+#   scripts/render.sh                  # uses kustomize and kubeconform from bin/ (make tools), then PATH
 #   KUSTOMIZE=/path/to/kustomize scripts/render.sh
+#
+# Versions, the Kubernetes schema version and the CRD catalog commit are pinned in scripts/tools.env; the scenario
+# harness (scripts/scenario.sh) renders with the same check (render_dir in scripts/lib.sh).
 set -euo pipefail
 
-KUSTOMIZE="${KUSTOMIZE:-kustomize}"
-KUBECONFORM="${KUBECONFORM:-kubeconform}"
+# shellcheck source=scripts/lib.sh
+. "$(dirname "$0")/lib.sh"
 
-# CRD schemas (Flux and others) from the datree catalog, pinned to a commit so CI does not change under us.
-CRDS_CATALOG_REF="27233a506de0085e71c7f9702597806a7f95eb24"
-# Kubernetes schemas for the lab's AKS version (the Sweden Central default, 2026-11-03). Bump it with the cluster.
-KUBERNETES_VERSION="1.36.0"
-CACHE_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/kubeconform-cache"
-mkdir -p "$CACHE_DIR"
-CRD_SCHEMAS="https://raw.githubusercontent.com/datreeio/CRDs-catalog/${CRDS_CATALOG_REF}/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
-
-cd "$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+require_render_tools
 
 # Only what Flux applies: scenarios/ holds deliberately broken manifests and is rendered by its own harness.
 dirs=()
@@ -36,16 +32,7 @@ fi
 status=0
 for dir in "${dirs[@]}"; do
   echo "== ${dir}"
-  if ! out="$("$KUSTOMIZE" build "$dir")"; then
-    echo "::error::kustomize build ${dir} failed"
-    status=1
-    continue
-  fi
-  if ! printf '%s\n' "$out" | "$KUBECONFORM" -strict -summary -kubernetes-version "$KUBERNETES_VERSION" \
-      -cache "$CACHE_DIR" -schema-location default -schema-location "$CRD_SCHEMAS"; then
-    echo "::error::${dir} does not pass the schema check"
-    status=1
-  fi
+  render_dir "$dir" || status=1
 done
 
 # Every Flux Kustomization in clusters/ must point at a directory of this repository that has a kustomization.

@@ -1,0 +1,19 @@
+# Demo workloads the scenarios break, applied only after infrastructure is ready. The same object as on the lab, so a
+# scenario commit on cluster/kind reaches the cluster the way the agent's fix would.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infrastructure
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: fleet
+  path: ./apps
+  prune: true
+  wait: true

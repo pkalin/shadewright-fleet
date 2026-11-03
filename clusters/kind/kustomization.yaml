@@ -1,0 +1,9 @@
+# Flux entry point for a local or CI Kind cluster (ADR-0022). scripts/kind.sh creates what the lab's Flux
+# configuration creates there: a GitRepository named "fleet" in flux-system and a Kustomization "kind" that applies
+# this path. There are no postBuild substitutions on Kind: nothing applied from here may need an Azure value, so
+# Azure-only parts (the Shadewright install with workload identity) go into a path that only clusters/lab applies.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - infrastructure.yaml
+  - apps.yaml

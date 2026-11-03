@@ -1,0 +1,63 @@
+name: Kind
+
+# Boots a Kind cluster with Flux on the commit under test and waits for the healthy baseline (ADR-0022, decision 4):
+# infrastructure (the demo namespace, KEDA, Prometheus) and apps (the demo workloads) Ready. Read-only: Flux reads
+# the public repository over HTTPS without credentials, and its GitRepository tracks the pull request's ref, not a
+# cluster/ branch, so the scenario harness refuses to run here. Nothing is pushed and no secret is used.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: kind-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Kind baseline
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Kind, its node image, kubectl and Flux are pinned by version and checksum or digest in scripts/tools.env.
+      - name: Install kind, kubectl and kustomize
+        run: scripts/install-tools.sh kind kubectl kustomize
+
+      # A pull request is read through refs/pull/<n>/head (fork pull requests included), the push to main through
+      # main pinned to the pushed commit. Event values reach the script through env, never the command line.
+      - name: Bring up Kind with Flux on this commit
+        env:
+          FLEET_URL: https://github.com/${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = pull_request ]; then
+            export FLEET_REF_NAME="refs/pull/${PR_NUMBER}/head"
+          else
+            export FLEET_BRANCH=main FLEET_COMMIT="$SHA"
+          fi
+          make kind-up
+
+      - name: Wait for the healthy baseline
+        env:
+          EXPECT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: make kind-wait
+
+      - name: Show the cluster state
+        if: failure()
+        run: scripts/kind.sh debug
+
+      - name: Delete the cluster
+        if: always()
+        run: make kind-down
