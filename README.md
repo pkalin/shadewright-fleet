@@ -13,7 +13,7 @@ clusters/lab/           Flux entry point, applied by the Flux configuration from
   apps.yaml             Flux Kustomization for apps/, after infrastructure is ready
 infrastructure/         Shadewright, KEDA and what the scenarios need (empty for now)
 apps/                   demo workloads the scenarios break (empty for now)
-scripts/render.sh       render check: kustomize build and kubeconform on every kustomization
+scripts/render.sh       render check: kustomize build and kubeconform on what Flux applies
 ```
 
 Environment values (tenant and identity client IDs, endpoints, the operator namespace) are never in this

@@ -1,6 +1,6 @@
 name: Render
 
-# Renders every kustomization and validates it against the Kubernetes and Flux schemas (scripts/render.sh).
+# Renders every kustomization Flux applies (clusters/, infrastructure/, apps/) and validates it against the Kubernetes and Flux schemas (scripts/render.sh).
 # The job name "Render manifests" is meant to be a required check on main. Runs on every pull request, with
 # no path filter, so a required check is never left pending. Reads the repository only: no secrets.
 on:

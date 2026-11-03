@@ -28,7 +28,7 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 ## Checks
 
 ```bash
-scripts/render.sh   # kustomize build of every kustomization, then kubeconform -strict with the Flux CRD schemas
+scripts/render.sh   # kustomize build of clusters/, infrastructure/, apps/, kubeconform -strict, Flux paths exist
 ```
 
 It needs `kustomize` and `kubeconform` on `PATH` (or `KUSTOMIZE=` and `KUBECONFORM=` pointing at them); CI pins both
@@ -37,7 +37,7 @@ by version and checksum in `.github/workflows/render.yaml`. A new kustomization 
 Required checks on `main` (set in the ruleset by the maintainer):
 
 - `Conventional PR title` (`.github/workflows/pr-title.yml`).
-- `Render manifests` (`.github/workflows/render.yaml`): every kustomization renders and passes the schema check.
+- `Render manifests` (`.github/workflows/render.yaml`): every kustomization under `clusters/`, `infrastructure/` and `apps/` renders and passes the schema check for the lab's Kubernetes version, and every Flux `path:` in `clusters/` exists. `scenarios/` (deliberately broken) is left out.
 
 ## Commits
 
