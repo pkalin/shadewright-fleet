@@ -1,12 +1,20 @@
 name: Path guard
 
 # Fails a pull request that changes anything outside the paths in .github/shadewright-paths.txt (design 8.1, 8.4).
-# Trusted by construction: the allow list and the matching script both come from the BASE commit of the pull
-# request, so the pull request cannot change the rules it is judged by. Nothing from the pull request head is
-# checked out or run: the changed paths come from the GitHub API (renames list the old and the new path).
-# Not pull_request_target. No path filter, so the check reports on every pull request and can be required.
-on:
-  pull_request:
+#
+# Why pull_request_target: on pull_request GitHub runs the workflow file from the PR's merge commit, so a PR could
+# rewrite this file and pass. On pull_request_target the workflow file, the allow list and scripts/path_guard.py are
+# all the copies on the base branch. That is only safe because this job never runs anything from the PR head:
+#   - it checks out the base branch commit (github.sha), never the head ref or the merge ref;
+#   - the changed paths and the head's Git tree come from the GitHub API as data (JSON), never as files;
+#   - the token is read-only and no secrets are used.
+# Do not add a step that checks out, builds or runs the head, or that interpolates PR text into a shell.
+#
+# Remaining gap: a PR can add a NEW workflow file with a job also named "Path guard" that always passes, and the
+# required check cannot tell the two apart. That is why .github/ is always code-owned (CODEOWNERS), never on the
+# allow list, and refused by the matcher: code owner review is what protects this guard.
+on: # zizmor: ignore[dangerous-triggers] base checkout only, API data only, read-only token; see above
+  pull_request_target:
     types: [opened, synchronize, reopened, edited]
 
 permissions: {}
@@ -24,28 +32,38 @@ jobs:
       pull-requests: read
     timeout-minutes: 5
     steps:
-      - name: Clone the base commit
+      # github.sha on pull_request_target is the tip of the base branch: the same commit this workflow file is from.
+      - name: Clone the base branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: List the changed paths
+      - name: Collect the changed paths and the head tree (data only)
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          gh api "repos/${REPO}/pulls/${PR}" >"${RUNNER_TEMP}/pr.json"
+          current="$(jq -r .head.sha "${RUNNER_TEMP}/pr.json")"
+          if [ "$current" != "$EVENT_HEAD_SHA" ]; then
+            echo "path guard: the pull request head moved from ${EVENT_HEAD_SHA} to ${current}; a newer run will check it" >&2
+            exit 1
+          fi
+          listed="$(jq -r .changed_files "${RUNNER_TEMP}/pr.json")"
           gh api --paginate "repos/${REPO}/pulls/${PR}/files?per_page=100" >"${RUNNER_TEMP}/files.json"
           jq -s '[.[][] | .filename, .previous_filename | select(. != null)] | unique' "${RUNNER_TEMP}/files.json" >"${RUNNER_TEMP}/changed.json"
           # The files endpoint stops at 3000 files: with more changes than listed, fail rather than guess.
-          listed="$(gh api "repos/${REPO}/pulls/${PR}" --jq .changed_files)"
           files="$(jq -s '[.[][]] | length' "${RUNNER_TEMP}/files.json")"
           if [ "$files" -ne "$listed" ]; then
             echo "path guard: the API listed ${files} files, the pull request has ${listed}" >&2
             exit 1
           fi
+          # The head tree, to refuse symlinks and submodules. Read as JSON only; nothing is checked out.
+          gh api "repos/${REPO}/git/trees/${EVENT_HEAD_SHA}?recursive=1" >"${RUNNER_TEMP}/tree.json"
 
       - name: Check the paths against the base allow list
-        run: python3 -I scripts/path_guard.py .github/shadewright-paths.txt <"${RUNNER_TEMP}/changed.json"
+        run: python3 -I scripts/path_guard.py .github/shadewright-paths.txt "${RUNNER_TEMP}/tree.json" <"${RUNNER_TEMP}/changed.json"

@@ -1,13 +1,8 @@
 # Helpers for tests/*_test.sh. Sourced.
 # shellcheck shell=bash
+# shellcheck source=tests/lib_core.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib_core.sh"
 
-SRC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FAILED=0
-PASSED=0
-
-# Never reach a real cluster or the user's Git setup, whatever the stubs miss.
-T="$(mktemp -d)"
-trap 'rm -rf "$T"' EXIT
 export HOME="$T/home"
 mkdir -p "$HOME"
 export KUBECONFIG="$T/no-kubeconfig"
@@ -32,33 +27,3 @@ export FLEET_TOOLS_DIR="$T/no-tools"
 export PATH="$STUBS:$PATH"
 export STUB_LOG="$T/stub.log"
 : >"$STUB_LOG"
-
-ok() { PASSED=$((PASSED + 1)); echo "ok - $1"; }
-not_ok() { FAILED=$((FAILED + 1)); echo "not ok - $1"; [ -z "${2:-}" ] || printf '%s\n' "$2" | sed 's/^/#   /'; }
-
-# run <cmd...>: runs a command, keeps its exit code in RC and its output in OUT.
-run() {
-  RC=0
-  OUT="$("$@" 2>&1)" || RC=$?
-}
-
-# expect_fail <name> <pattern>: the last run failed and printed the pattern.
-expect_fail() {
-  if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qE -- "$2"; then ok "$1"; else not_ok "$1" "rc=${RC}: ${OUT}"; fi
-}
-
-expect_ok() {
-  if [ "$RC" -eq 0 ] && { [ -z "${2:-}" ] || printf '%s' "$OUT" | grep -qE -- "$2"; }; then ok "$1"; else not_ok "$1" "rc=${RC}: ${OUT}"; fi
-}
-
-# check <name> <command...>: passes when the command succeeds.
-check() {
-  local name="$1"
-  shift
-  if "$@"; then ok "$name"; else not_ok "$name"; fi
-}
-
-finish() {
-  echo "# passed ${PASSED}, failed ${FAILED}"
-  [ "$FAILED" -eq 0 ]
-}
