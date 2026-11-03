@@ -2,25 +2,42 @@
 
 The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the repo the Shadewright operator opens remediation pull requests against, so its layout and branch protection are part of the demo.
 
-## Layout (planned)
+## Layout
 
-- `clusters/lab/`: Flux entry point (`flux-system`, Kustomizations for `infrastructure` then `apps`).
+- `clusters/lab/`: Flux entry point. `shadewright-azure` (`lab/flux.tf`) creates the Flux configuration `fleet`
+  through the AKS extension: a `GitRepository` named `fleet` and a Kustomization that applies this path, both in
+  `flux-system`. This path holds no `flux-system` manifests of its own, only two Flux `Kustomization` objects:
+  `infrastructure`, then `apps` (`dependsOn`), each with `prune: true` and `wait: true`. The extension enforces
+  multi-tenancy, so every Flux object stays in `flux-system` and references sources in that namespace.
 - `infrastructure/`: Shadewright itself (Helm chart from the operator repo), KEDA and anything the scenarios need.
-- `apps/demo/`: small workloads used as remediation targets.
-- `scenarios/`: one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod, broken KEDA trigger, invalid manifest), each with what breaks, the expected diagnosis and the expected PR, or the expected refusal.
+  Empty for now.
+- `apps/`: small workloads used as remediation targets, under `apps/demo/`. Empty for now.
+- `scenarios/` (planned): one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod, broken KEDA trigger, invalid manifest), each with what breaks, the expected diagnosis and the expected PR, or the expected refusal.
+- `scripts/render.sh`: the render check, run by CI and locally.
 
 ## Rules
 
 - `main` is protected: changes only through PRs with required checks. That applies to the operator's GitHub App as well; it never gets bypass rights.
 - Files the operator may patch are listed in its policy config; anything else (Flux config, RBAC, Secrets, workflows, branch protection) is human-only.
-- Environment values (cluster name, identity client IDs, registry) come from Flux `postBuild.substitute`, filled by `shadewright-azure`. Never hard-code them here.
+- Environment values (tenant and identity client IDs, endpoints, the operator namespace) come from Flux
+  `postBuild.substitute`, filled by `shadewright-azure` (`lab/flux.tf`). Never hard-code them here. Substitutions
+  apply only to the Kustomization that declares them: `clusters/lab/infrastructure.yaml` forwards them as
+  `${VAR}` to `infrastructure/`; forward a variable to `apps` the same way when a workload needs one.
 - No Secrets in Git, not even encrypted.
 
 ## Checks
 
 ```bash
-kustomize build clusters/lab >/dev/null   # every Kustomization renders
+scripts/render.sh   # kustomize build of every kustomization, then kubeconform -strict with the Flux CRD schemas
 ```
+
+It needs `kustomize` and `kubeconform` on `PATH` (or `KUSTOMIZE=` and `KUBECONFORM=` pointing at them); CI pins both
+by version and checksum in `.github/workflows/render.yaml`. A new kustomization is picked up automatically.
+
+Required checks on `main` (set in the ruleset by the maintainer):
+
+- `Conventional PR title` (`.github/workflows/pr-title.yml`).
+- `Render manifests` (`.github/workflows/render.yaml`): every kustomization renders and passes the schema check.
 
 ## Commits
 
@@ -39,7 +56,7 @@ so the **pull request title** is what counts; a required check (`Conventional PR
 
 - Every change goes through a branch and a pull request; `main` is protected by a ruleset (required checks,
   squash merge, no force push). Keep pull requests small and say why in the description.
-- Run `kustomize build clusters/lab` locally before opening a pull request, and add or update tests in the same pull request.
+- Run `scripts/render.sh` locally before opening a pull request, and add or update tests in the same pull request.
 - Leave the code safer than you found it: when you notice a security or reliability problem nearby, fix it
   or raise it in the pull request, do not ignore it.
 - Prefer boring, well-known solutions and the project's existing patterns over new dependencies or clever code.

@@ -1,0 +1,59 @@
+name: Render
+
+# Renders every kustomization and validates it against the Kubernetes and Flux schemas (scripts/render.sh).
+# The job name "Render manifests" is meant to be a required check on main. Runs on every pull request, with
+# no path filter, so a required check is never left pending. Reads the repository only: no secrets.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: render-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Official release binaries, verified against the checksums published with each release.
+  KUSTOMIZE_VERSION: v5.8.1
+  KUSTOMIZE_SHA256: 029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d # kustomize_v5.8.1_linux_amd64.tar.gz
+  KUBECONFORM_VERSION: v0.8.0
+  KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 # kubeconform-linux-amd64.tar.gz
+
+jobs:
+  render:
+    name: Render manifests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install kustomize and kubeconform
+        run: |
+          set -euo pipefail
+          bin="${RUNNER_TEMP}/bin"
+          mkdir -p "$bin"
+          cd "${RUNNER_TEMP}"
+
+          kustomize_tgz="kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --proto '=https' -o "$kustomize_tgz" \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/${kustomize_tgz}"
+          echo "${KUSTOMIZE_SHA256}  ${kustomize_tgz}" | sha256sum -c -
+          tar -xzf "$kustomize_tgz" -C "$bin" kustomize
+
+          kubeconform_tgz="kubeconform-linux-amd64.tar.gz"
+          curl -fsSL --proto '=https' -o "$kubeconform_tgz" \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/${kubeconform_tgz}"
+          echo "${KUBECONFORM_SHA256}  ${kubeconform_tgz}" | sha256sum -c -
+          tar -xzf "$kubeconform_tgz" -C "$bin" kubeconform
+
+          echo "$bin" >> "$GITHUB_PATH"
+
+      - name: Render and validate
+        run: scripts/render.sh

@@ -4,7 +4,26 @@
 
 The GitOps repository for the [Shadewright](https://shadewright.io) lab cluster, synced by Flux. The Shadewright operator opens its remediation pull requests here, so this repository's layout and branch rules are part of the demo.
 
-Nothing is here yet. The planned layout and rules are in [AGENTS.md](AGENTS.md).
+## Layout
+
+```text
+clusters/lab/           Flux entry point, applied by the Flux configuration from shadewright-azure
+  kustomization.yaml
+  infrastructure.yaml   Flux Kustomization for infrastructure/
+  apps.yaml             Flux Kustomization for apps/, after infrastructure is ready
+infrastructure/         Shadewright, KEDA and what the scenarios need (empty for now)
+apps/                   demo workloads the scenarios break (empty for now)
+scripts/render.sh       render check: kustomize build and kubeconform on every kustomization
+```
+
+Environment values (tenant and identity client IDs, endpoints, the operator namespace) are never in this
+repository: they arrive as Flux `postBuild` substitutions (`${VAR}`) from the lab's Terraform.
+
+## Checks
+
+Every pull request runs `Render manifests`: each kustomization must build and pass `kubeconform -strict` with
+the Flux CRD schemas. Run the same check locally with `scripts/render.sh`. The full rules and planned layout
+are in [AGENTS.md](AGENTS.md).
 
 ## License
 
