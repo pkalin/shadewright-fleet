@@ -14,5 +14,5 @@ spec:
     kind: GitRepository
     name: fleet
   path: ./apps
-  prune: "yes"
+  prune: true
   wait: true
