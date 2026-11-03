@@ -1,0 +1,8 @@
+# Flux entry point for the lab cluster. shadewright-azure (lab/flux.tf) creates the Flux configuration
+# "fleet": a GitRepository named "fleet" in flux-system and a Kustomization that applies this path with
+# postBuild substitutions. Everything below it is ordered here: infrastructure, then apps.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - infrastructure.yaml
+  - apps.yaml
