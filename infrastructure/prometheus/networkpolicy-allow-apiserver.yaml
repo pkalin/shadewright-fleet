@@ -1,0 +1,26 @@
+# The Prometheus server (service discovery; its configmap-reload sidecar shares the pod, so it cannot be
+# excluded) and kube-state-metrics call the Kubernetes API.
+# The API server's address is environment-specific (no IPs in this repository) and Cilium gives it a reserved
+# identity that ipBlock rules do not match, so the rule opens the port to any destination: 443 on AKS, 6443
+# on Kind. Pods are selected by name, so a pod added here later gets no API egress by accident.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apiserver
+  namespace: prometheus
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - prometheus
+          - kube-state-metrics
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443

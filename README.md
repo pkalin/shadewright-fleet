@@ -11,8 +11,12 @@ clusters/lab/           Flux entry point, applied by the Flux configuration from
   kustomization.yaml
   infrastructure.yaml   Flux Kustomization for infrastructure/
   apps.yaml             Flux Kustomization for apps/, after infrastructure is ready
-infrastructure/         Shadewright, KEDA and what the scenarios need (empty for now)
-apps/                   demo workloads the scenarios break (empty for now)
+infrastructure/         cluster add-ons and the namespaces apps/ needs (Shadewright later)
+  namespaces/           the demo Namespace, created before anything binds in it
+  keda/                 KEDA (upstream chart, one replica per component)
+  prometheus/           minimal Prometheus: server, kube-state-metrics, kubelet and cAdvisor, 24h retention
+apps/                   demo workloads the scenarios break
+  demo/                 web (podinfo) and worker (podinfo scaled by a KEDA ScaledObject on a Prometheus query)
 scripts/render.sh       render check: kustomize build and kubeconform on what Flux applies
 ```
 

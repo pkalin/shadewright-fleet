@@ -1,0 +1,5 @@
+# Namespaces that apps/ uses but infrastructure/ must find in place (see demo.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - demo.yaml

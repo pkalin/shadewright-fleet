@@ -9,9 +9,25 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   `flux-system`. This path holds no `flux-system` manifests of its own, only two Flux `Kustomization` objects:
   `infrastructure`, then `apps` (`dependsOn`), each with `prune: true` and `wait: true`. The extension enforces
   multi-tenancy, so every Flux object stays in `flux-system` and references sources in that namespace.
-- `infrastructure/`: Shadewright itself (Helm chart from the operator repo), KEDA and anything the scenarios need.
-  Empty for now.
-- `apps/`: small workloads used as remediation targets, under `apps/demo/`. Empty for now.
+- `infrastructure/`: cluster add-ons and the namespaces `apps/` needs; later Shadewright itself (Helm chart from
+  the operator repo).
+  - `namespaces/`: the `demo` Namespace. It belongs to the demo workloads but lives here because infrastructure
+    objects bind in it before `apps` is applied (the analyzer's RoleBinding from the operator's `config/watch`,
+    Prometheus' scrape target). Flux applies Namespaces before other objects of the same Kustomization, and
+    `infrastructure` before `apps`, so it always exists first. Put any other namespace that `infrastructure/`
+    refers to but `apps/` fills here too.
+  - `keda/`: KEDA from the upstream chart (not the AKS add-on), one replica per component.
+  - `prometheus/`: a minimal Prometheus (ADR-0017): server and kube-state-metrics, kubelet and cAdvisor
+    targets, 24h retention on an emptyDir, no Alertmanager or Grafana. In-cluster URL
+    `http://prometheus-server.prometheus.svc`.
+  - Each add-on has its own namespace (restricted Pod Security labels, default-deny NetworkPolicy and explicit
+    allows) and a `HelmRepository` and `HelmRelease` in `flux-system` (multi-tenancy) with `targetNamespace`.
+    Charts are pinned to exact versions and images to tag and digest in the values; bump them together.
+- `apps/`: small workloads used as remediation targets, under `apps/demo/`: `web` (Deployment and Service) and
+  `worker` (Deployment, Service and a KEDA `ScaledObject` with a Prometheus trigger), both podinfo. One object per
+  file and kustomizations with `resources` only, because the operator's source mapping (ADR-0012) supports plain
+  manifests only; values the patchers change (memory limits, `maxReplicaCount`) stay literal. The worker has no
+  `spec.replicas`: the HPA that KEDA creates owns it.
 - `scenarios/` (planned): one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod, broken KEDA trigger, invalid manifest), each with what breaks, the expected diagnosis and the expected PR, or the expected refusal.
 - `scripts/render.sh`: the render check, run by CI and locally.
 

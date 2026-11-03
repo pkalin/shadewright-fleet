@@ -1,4 +1,7 @@
-# Filled by later tasks: the Shadewright install, KEDA and what the scenarios need.
+# Cluster add-ons, the namespaces apps/ needs, and later the Shadewright install.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources: []
+resources:
+  - namespaces
+  - keda
+  - prometheus

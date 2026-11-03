@@ -1,0 +1,12 @@
+# The namespace of the demo workloads (apps/demo/). It is declared here, not in apps/, because infrastructure
+# objects bind in it before the apps exist: the Shadewright analyzer's RoleBinding (operator repo, config/watch)
+# and Prometheus' scrape target. Flux applies infrastructure first, so the namespace exists before anything
+# refers to it, and removing the demo apps never deletes it with whatever infrastructure placed there.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
