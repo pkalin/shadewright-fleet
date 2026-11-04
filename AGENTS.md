@@ -6,11 +6,13 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 
 - `clusters/lab/`: Flux entry point. `shadewright-azure` (`lab/flux.tf`) creates the Flux configuration `fleet`
   through the AKS extension: a `GitRepository` named `fleet` and a Kustomization that applies this path, both in
-  `flux-system`. This path holds no `flux-system` manifests of its own, only two Flux `Kustomization` objects:
-  `infrastructure`, then `apps` (`dependsOn`), each with `prune: true` and `wait: true`. The extension enforces
+  `flux-system`. This path holds no `flux-system` manifests of its own, only Flux `Kustomization` objects:
+  `infrastructure`, then `shadewright` and `apps`, each after `infrastructure` (`dependsOn`) and independent of each
+  other, with `prune: true` and `wait: true` (not `apps`: its Ready is the apply result, so a broken
+  rollout does not keep the operator's source mapper from accepting it, ADR-0012). The extension enforces
   multi-tenancy, so every Flux object stays in `flux-system` and references sources in that namespace.
-- `clusters/kind/`: Flux entry point for a local or CI Kind cluster, the same two Kustomizations without
-  substitutions. `scripts/kind.sh` creates what the lab's Flux configuration creates there: the `GitRepository`
+- `clusters/kind/`: Flux entry point for a local or CI Kind cluster, the `infrastructure` and `apps`
+  Kustomizations without substitutions (no `shadewright`). `scripts/kind.sh` creates what the lab's Flux configuration creates there: the `GitRepository`
   `fleet` and a Kustomization `kind` that applies this path. Nothing applied from `clusters/kind/` may need an Azure
   value, so Azure-only parts (the Shadewright install with workload identity) go into a path only `clusters/lab`
   applies.
@@ -25,6 +27,15 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   - `prometheus/`: a minimal Prometheus (ADR-0017): server and kube-state-metrics, kubelet and cAdvisor
     targets, 24h retention on an emptyDir, no Alertmanager or Grafana. In-cluster URL
     `http://prometheus-server.prometheus.svc`.
+  - `shadewright/`: the agent (analyzer and executor), vendored: `kustomize build` of the operator's `config/default`
+    and `config/watch` (namespace `demo`) at the commit in `VENDOR`, images pinned by digest. Never edit
+    `install.yaml`, `watch-demo.yaml` or `VENDOR` by hand: `scripts/vendor-shadewright.sh <commit> --analyzer-digest
+    sha256:... --executor-digest sha256:...` regenerates them and refuses a tag. Not listed in
+    `infrastructure/kustomization.yaml`: `infrastructure/shadewright-lab/` (the two workload identity client IDs as
+    `${VAR}` substitutions, each tied to a Terraform output in its header) is applied only by
+    `clusters/lab/shadewright.yaml`, after `infrastructure`; nothing depends on it, so a broken agent cannot block `apps`.
+    `make check-vendor` (CI, needs network) reruns the script at the commit in `VENDOR` and fails on any diff, so a
+    hand edit of the vendored files cannot land; `tests/vendor_test.sh` covers the script offline.
   - Each add-on has its own namespace (restricted Pod Security labels, default-deny NetworkPolicy and explicit
     allows) and a `HelmRepository` and `HelmRelease` in `flux-system` (multi-tenancy) with `targetNamespace`.
     Charts are pinned to exact versions and images to tag and digest in the values; bump them together.
@@ -48,7 +59,8 @@ CLUSTER=kind|lab` commits `main`'s tree with the scenario's files over `apps/dem
 `make scenario-reset CLUSTER=kind|lab` commits `main`'s tree; both push fast-forwards only. The harness refuses
 unless the `GitRepository` `flux-system/fleet` in the current kube context tracks exactly `cluster/<CLUSTER>`. Never
 add a way for scripts here to write `main`, force-push, or create or delete a branch, and keep `push_cluster_branch`
-in `scripts/scenario.sh` the only `git push`.
+in `scripts/scenario.sh` the only `git push`. A push never uses `SCENARIO_REF` (it is for `list` and `DRY_RUN=1`
+only): `apply` refuses it without `DRY_RUN=1`, so a push is always built from `origin/main`.
 
 ## Rules
 
@@ -70,13 +82,22 @@ make check-scenarios  # every scenario: layout, expected.yaml against the schema
 ```
 
 `render.sh` and the harness refuse kustomize and kubeconform versions other than those in `scripts/tools.env`;
-`bin/` comes first on `PATH`. A new kustomization is picked up automatically. Scripts must run on macOS bash 3.2 and
+`bin/` comes first on `PATH` (the tests set `FLEET_TOOLS_DIR` to an empty directory so their stubs win). A new kustomization is picked up automatically. Scripts must run on macOS bash 3.2 and
 GNU Make 3.81 as well as Linux, pass shellcheck, and come with offline tests.
 
 Rules on `main` (set in the ruleset by the maintainer; README, "Rules on `main`"): one approval of the most
-recent push, the repository admin role as the only bypass actor (pull requests only), never the App. Required checks:
+recent push, code owner review, the repository admin role as the only bypass actor (pull requests only), never the App. Required checks:
 
 - `Conventional PR title` (`.github/workflows/pr-title.yml`).
+- `Path guard` (`.github/workflows/path-guard.yml`; required once the maintainer applies the ruleset): fails when a
+  pull request changes (or renames from or to) any path outside `.github/shadewright-paths.txt`, which starts with
+  `apps/**`, or changes a symlink or submodule. It runs on `pull_request_target` so the workflow, the list and
+  `scripts/path_guard.py` are the base copies, and it only ever reads the head through the API (file list, Git
+  tree). Never check out or run the head there, and never interpolate PR text into a shell. `.github/`, `clusters/`,
+  `infrastructure/`, `scripts/`, `tests/`, `Makefile` and every root file are refused whatever the list says.
+  Remaining gap: a pull request can add a new workflow whose job is also named `Path guard`. So `.github/` always
+  stays code-owned (`.github/CODEOWNERS` gives `*` a human owner) and is never on the allow list; code owner review
+  is what protects the guard itself.
 - `Render manifests` (`.github/workflows/render.yaml`): every kustomization under `clusters/`, `infrastructure/` and `apps/` renders and passes the schema check for the lab's Kubernetes version, and every Flux `path:` in `clusters/` exists. `scenarios/` (deliberately broken) is left out.
 
 Not required (yet): `Harness tests` (`.github/workflows/harness.yaml`: shellcheck, `tests/`, `make check-scenarios`)

@@ -8,7 +8,9 @@ REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 . "${REPO_ROOT}/scripts/tools.env"
 
 # Tools installed by scripts/install-tools.sh come first, so the pinned versions win over others on PATH.
-PATH="${REPO_ROOT}/bin:${PATH}"
+# FLEET_TOOLS_DIR replaces that directory; only the tests set it, to an empty one, so that their stubs on PATH win
+# over whatever make tools has put in bin/.
+PATH="${FLEET_TOOLS_DIR:-${REPO_ROOT}/bin}:${PATH}"
 export PATH
 
 KUSTOMIZE="${KUSTOMIZE:-kustomize}"
@@ -45,10 +47,12 @@ require_render_tools() {
   require_version kubeconform "$KUBECONFORM_VERSION" "$out"
 }
 
-# render_dir <dir>: kustomize build of one directory and kubeconform -strict on the output, against the Kubernetes
-# schemas of the lab's version and the pinned CRD catalog. The same check as scripts/render.sh.
+# render_dir <dir> [label] [skipped kinds]: kustomize build of one directory and kubeconform -strict on the output,
+# against the Kubernetes schemas of the lab's version and the pinned CRD catalog. The same check as scripts/render.sh.
+# The third argument is a comma-separated list of kinds kubeconform skips; leave it empty to validate everything.
 render_dir() {
-  local dir="$1" out cache
+  local dir="$1" out cache skip=()
+  [ -z "${3:-}" ] || skip=(-skip "$3")
   cache="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/kubeconform-cache"
   mkdir -p "$cache"
   if ! out="$("$KUSTOMIZE" build "$dir")"; then
@@ -56,7 +60,7 @@ render_dir() {
     return 1
   fi
   if ! printf '%s\n' "$out" | "$KUBECONFORM" -strict -summary -kubernetes-version "$KUBERNETES_VERSION" \
-      -cache "$cache" -schema-location default -schema-location "$CRD_SCHEMAS"; then
+      ${skip[@]+"${skip[@]}"} -cache "$cache" -schema-location default -schema-location "$CRD_SCHEMAS"; then
     echo "::error::${2:-$dir} does not pass the schema check"
     return 1
   fi

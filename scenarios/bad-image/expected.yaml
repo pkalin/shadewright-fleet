@@ -1,0 +1,19 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: bad-image
+summary: The web Deployment points at an image tag that does not exist, so its new pod stays in ErrImagePull and ImagePullBackOff.
+incident:
+  reason: ImagePullBackOff
+  object:
+    apiVersion: apps/v1
+    kind: Deployment
+    namespace: demo
+    name: web
+diagnosis:
+  evidence:
+    - the image reference ghcr.io/stefanprodan/podinfo:6.17.99
+    - the pull error (manifest unknown or not found) from the pod status and the Failed and BackOff events
+outcome:
+  type: refusal
+  reason: Changing an image is not in the catalog (SetContainerMemoryLimit and AdjustKedaMaxReplicas only); the request ends NeedsIntervention and a person is notified through a GitHub issue.
+  phase: NeedsIntervention

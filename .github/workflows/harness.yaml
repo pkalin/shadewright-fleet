@@ -37,5 +37,9 @@ jobs:
       - name: Offline tests
         run: make test
 
+      # Fetches the public operator repository at the commit in VENDOR; a hand edit of the vendored files fails here.
+      - name: Check the vendored Shadewright install
+        run: make check-vendor
+
       - name: Check the scenarios
         run: make check-scenarios

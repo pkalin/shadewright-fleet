@@ -37,9 +37,10 @@ while [ "$#" -gt 0 ]; do
 done
 EOF
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUBS/docker"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$STUBS/kustomize"
 # No real waiting in the polling loops.
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUBS/sleep"
-chmod +x "$STUBS/kind" "$STUBS/kubectl" "$STUBS/docker" "$STUBS/curl" "$STUBS/sleep"
+chmod +x "$STUBS/kind" "$STUBS/kubectl" "$STUBS/docker" "$STUBS/kustomize" "$STUBS/curl" "$STUBS/sleep"
 
 KIND="$SRC_ROOT/scripts/kind.sh"
 SHA=0123456789abcdef0123456789abcdef01234567

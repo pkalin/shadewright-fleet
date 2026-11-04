@@ -15,4 +15,6 @@ spec:
     name: fleet
   path: ./apps
   prune: true
-  wait: true
+  # No wait: Ready means the revision was applied, not that the workloads are healthy. A broken rollout (the OOM
+  # scenario) would otherwise hold Ready at Unknown, then False, and the operator's source mapper refuses a
+  # Kustomization that is not Ready (ADR-0012). Workload health is Shadewright's to judge.
