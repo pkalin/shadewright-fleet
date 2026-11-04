@@ -1,4 +1,4 @@
-# Cluster add-ons (the Shadewright install is clusters/lab/shadewright.yaml). The AKS Flux extension enforces multi-tenancy, so this
+# Cluster add-ons (the Shadewright install is clusters/lab/shadewright.yaml). The lab's Flux runs with --no-cross-namespace-refs, so this
 # object, its source and the configuration live in the same namespace (flux-system).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -16,7 +16,7 @@ spec:
   prune: true
   wait: true
   # Substitutions apply only to the objects of the Kustomization that declares them, so the values the
-  # parent receives from lab/flux.tf are forwarded explicitly. The parent replaces each ${VAR} below.
+  # parent receives from the lab's Flux output (shadewright-azure lab/flux.tf) are forwarded explicitly. The parent replaces each ${VAR} below.
   postBuild:
     substitute:
       AZURE_TENANT_ID: "${AZURE_TENANT_ID}"

@@ -60,8 +60,9 @@ validate_inputs() {
   fi
 }
 
-# The objects the lab's Flux configuration creates through the AKS extension (shadewright-azure lab/flux.tf), for
-# Kind: the same names and intervals, without postBuild substitutions.
+# The objects shadewright-azure's scripts/lab.sh creates on the lab after installing Flux, for Kind: the same
+# GitRepository, and a root Kustomization with the same settings, named "kind" here and "lab" there, without
+# postBuild substitutions.
 cmd_bootstrap() {
   validate_inputs
   cat <<EOF

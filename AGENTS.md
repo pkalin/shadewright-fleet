@@ -4,15 +4,15 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 
 ## Layout
 
-- `clusters/lab/`: Flux entry point. `shadewright-azure` (`lab/flux.tf`) creates the Flux configuration `fleet`
-  through the AKS extension: a `GitRepository` named `fleet` and a Kustomization that applies this path, both in
-  `flux-system`. This path holds no `flux-system` manifests of its own, only Flux `Kustomization` objects:
+- `clusters/lab/`: Flux entry point. `shadewright-azure` (`scripts/lab.sh`, after the apply; its `lab/flux.tf` output
+  holds the values) installs Flux and creates a `GitRepository` named `fleet` and the root Kustomization `lab` that
+  applies this path, both in `flux-system`. This path holds no `flux-system` manifests of its own, only Flux `Kustomization` objects:
   `infrastructure`, then `shadewright` and `apps`, each after `infrastructure` (`dependsOn`) and independent of each
   other, with `prune: true` and `wait: true` (not `apps`: its Ready is the apply result, so a broken
-  rollout does not keep the operator's source mapper from accepting it, ADR-0012). The extension enforces
-  multi-tenancy, so every Flux object stays in `flux-system` and references sources in that namespace.
+  rollout does not keep the operator's source mapper from accepting it, ADR-0012). The lab's Flux runs with
+  `--no-cross-namespace-refs` (multi-tenancy), so every Flux object stays in `flux-system` and references sources in that namespace.
 - `clusters/kind/`: Flux entry point for a local or CI Kind cluster, the `infrastructure` and `apps`
-  Kustomizations without substitutions (no `shadewright`). `scripts/kind.sh` creates what the lab's Flux configuration creates there: the `GitRepository`
+  Kustomizations without substitutions (no `shadewright`). `scripts/kind.sh` creates what the lab's `scripts/lab.sh` creates there: the `GitRepository`
   `fleet` and a Kustomization `kind` that applies this path. Nothing applied from `clusters/kind/` may need an Azure
   value, so Azure-only parts (the Shadewright install with workload identity) go into a path only `clusters/lab`
   applies.
@@ -67,7 +67,7 @@ only): `apply` refuses it without `DRY_RUN=1`, so a push is always built from `o
 - `main` is protected: changes only through PRs with required checks. That applies to the operator's GitHub App as well; it never gets bypass rights.
 - Files the operator may patch are listed in its policy config; anything else (Flux config, RBAC, Secrets, workflows, branch protection) is human-only.
 - Environment values (tenant and identity client IDs, endpoints, the operator namespace) come from Flux
-  `postBuild.substitute`, filled by `shadewright-azure` (`lab/flux.tf`). Never hard-code them here. Substitutions
+  `postBuild.substitute`, filled by `shadewright-azure` (the `flux` output of `lab/flux.tf`, applied by `scripts/lab.sh`). Never hard-code them here. Substitutions
   apply only to the Kustomization that declares them: `clusters/lab/infrastructure.yaml` forwards them as
   `${VAR}` to `infrastructure/`; forward a variable to `apps` the same way when a workload needs one.
 - No Secrets in Git, not even encrypted.
