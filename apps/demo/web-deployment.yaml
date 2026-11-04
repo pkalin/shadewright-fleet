@@ -3,7 +3,6 @@
 # limit, SetContainerMemoryLimit), so keep every value literal: no patches or generators (ADR-0012).
 # Image: https://github.com/stefanprodan/podinfo (6.17.0, multi-arch index digest on ghcr.io); the image's
 # user "app" is uid 100, gid 101.
-# SCENARIO missing-secret (scenarios/missing-secret): the container reads an env var from the Secret web-credentials, which does not exist.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -47,11 +46,6 @@ spec:
           env:
             - name: PODINFO_UI_MESSAGE
               value: shadewright demo web
-            - name: WEB_API_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: web-credentials
-                  key: api-token
           ports:
             - name: http
               containerPort: 9898
