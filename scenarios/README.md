@@ -167,8 +167,8 @@ crash-looping container is a Warning, as in `oom`).
 
 ### Which namespaces are watched
 
-The analyzer watches the namespaces in `--watch-namespaces`, and the lab sets it to `demo` only (the vendored install
-in `infrastructure/shadewright/`). Every scenario except `invalid-manifest` breaks an object in `demo`. That one
+The analyzer watches the namespaces in `--watch-namespaces`, and the lab sets it to `demo` only (the `watchNamespaces` value of the
+HelmRelease in `infrastructure/shadewright/`). Every scenario except `invalid-manifest` breaks an object in `demo`. That one
 fails in `flux-system` (the Kustomization `apps`), which is not watched, so it produces no Incident until
 `flux-system` is added there, with a RoleBinding. That widens what the analyzer reads and is a separate decision.
 

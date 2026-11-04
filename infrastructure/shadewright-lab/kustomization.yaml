@@ -1,81 +1,38 @@
-# Lab values for the vendored install, applied by the Flux Kustomization "shadewright" (clusters/lab/shadewright.yaml).
+# Lab values for the Shadewright HelmRelease, applied by the Flux Kustomization "shadewright" (clusters/lab/shadewright.yaml).
 # Every ${VAR} is a Flux postBuild substitution that shadewright-azure (lab/flux.tf) fills from its Terraform outputs;
-# nothing environment-specific is committed. The ServiceAccounts, RBAC and NetworkPolicies stay as the operator builds
-# them (invariant 6, separate identities): the patches only add the workload identity annotation to each ServiceAccount
-# and the label that asks the AKS webhook to inject the federated token into each pod.
+# nothing environment-specific is committed. The chart sets the workload identity annotation on each ServiceAccount
+# and the label that asks the AKS webhook to inject the federated token into the pod; the two identities stay
+# separate (invariant 6), and the chart refuses to render if both client IDs are the same.
 #
 #   Variable             Source (shadewright-azure)                                              Used for
-#   ANALYZER_CLIENT_ID   foundation output analyzer_identity, field client_id                    analyzer ServiceAccount
-#   EXECUTOR_CLIENT_ID   foundation output executor_identity, field client_id                    executor ServiceAccount
+#   ANALYZER_CLIENT_ID   foundation output analyzer_identity, field client_id                    analyzer.identity.azure.clientId
+#   EXECUTOR_CLIENT_ID   foundation output executor_identity, field client_id                    executor.identity.azure.clientId
 #
 # The federated credentials of both identities name the namespace shadewright-system and the ServiceAccounts
 # shadewright-analyzer and shadewright-executor (lab/federation.tf: operator_namespace, analyzer_service_account and
-# executor_service_account), which is what the vendored install creates. Changing either side needs both.
-#
-# Two more patches that are not identity values. The namespace gets the restricted Pod Security labels the other
-# add-ons have (both Deployments already meet restricted: non-root, RuntimeDefault seccomp, no privilege escalation,
-# all capabilities dropped, read-only root filesystem). The four CRDs and the namespace get
-# kustomize.toolkit.fluxcd.io/prune: disabled, so renaming or deleting the Flux Kustomization never deletes the CRDs
-# and with them every Incident and RemediationRequest.
+# executor_service_account), which is what the chart creates for the release shadewright in that namespace.
+# Changing either side needs both.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../shadewright
 patches:
   - target:
-      kind: ServiceAccount
-      name: shadewright-executor
+      kind: HelmRelease
+      name: shadewright
     patch: |-
-      apiVersion: v1
-      kind: ServiceAccount
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
       metadata:
-        name: shadewright-executor
-        annotations:
-          azure.workload.identity/client-id: "${EXECUTOR_CLIENT_ID}"
-  - target:
-      kind: ServiceAccount
-      name: shadewright-analyzer
-    patch: |-
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: shadewright-analyzer
-        annotations:
-          azure.workload.identity/client-id: "${ANALYZER_CLIENT_ID}"
-  - target:
-      kind: Deployment
-      name: shadewright-analyzer
-    patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: shadewright-analyzer
+        name: shadewright
+        namespace: flux-system
       spec:
-        template:
-          metadata:
-            labels:
-              azure.workload.identity/use: "true"
-  - target:
-      kind: Namespace
-      name: shadewright-system
-    patch: |-
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: shadewright-system
-        annotations:
-          kustomize.toolkit.fluxcd.io/prune: disabled
-        labels:
-          pod-security.kubernetes.io/enforce: restricted
-          pod-security.kubernetes.io/audit: restricted
-          pod-security.kubernetes.io/warn: restricted
-  - target:
-      kind: CustomResourceDefinition
-      name: ".*\\.remediation\\.shadewright\\.io"
-    patch: |-
-      apiVersion: apiextensions.k8s.io/v1
-      kind: CustomResourceDefinition
-      metadata:
-        name: ignored
-        annotations:
-          kustomize.toolkit.fluxcd.io/prune: disabled
+        values:
+          analyzer:
+            identity:
+              azure:
+                clientId: "${ANALYZER_CLIENT_ID}"
+          executor:
+            identity:
+              azure:
+                clientId: "${EXECUTOR_CLIENT_ID}"
