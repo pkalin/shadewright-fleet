@@ -12,13 +12,20 @@ keeps serving. The symptom shows within a minute of Flux applying the commit.
 The broken object is a plain manifest that the `apps` Kustomization applies, so source mapping (ADR-0012) maps the
 Deployment to `apps/demo/web-deployment.yaml`.
 
-## Expected diagnosis
+## Expected Incident (planned)
 
-The diagnosis names the missing Secret, `web-credentials`, and the container state reason
-`CreateContainerConfigError`. Whether the Secret exists is learned through the yes/no existence check, never by
-reading a Secret (design 10.3): the analyzer has no `get` on Secrets and must not need it.
+`CreateContainerConfigError` is a waiting reason of the container status, which the collector does not read, so it
+is not the Incident reason. The Incident carries the kubelet's Warning event reason `Failed`, whose note says the
+Secret `web-credentials` is not found, attributed to Deployment `demo/web` through its ReplicaSet. Not observed yet.
 
-## Expected outcome
+## Expected diagnosis (planned)
+
+The diagnosis names the missing Secret, `web-credentials` (from the Deployment's `secretKeyRef` and the event note),
+and the container state reason `CreateContainerConfigError` (from the pod status, through a read-only tool that is
+not built; the collector never reads it). Whether the Secret exists is learned through the yes/no existence check,
+never by reading a Secret (design 10.3): the analyzer has no `get` on Secrets and must not need it.
+
+## Expected outcome (planned)
 
 Refusal. Secrets are excluded from the MVP (design 10.10) and the action catalog cannot create a Secret or edit the
 reference. A person is notified through a GitHub issue (ADR-0014) and the request ends `NeedsIntervention`. The fix
