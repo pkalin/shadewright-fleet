@@ -3,18 +3,25 @@ kind: Scenario
 name: missing-secret
 summary: The web Deployment reads an env var from the Secret web-credentials, which does not exist, so the container stays in CreateContainerConfigError.
 incident:
-  reason: CreateContainerConfigError
+  reason: Failed
+  status: planned
+  source: The kubelet's Warning event Failed on the pod, with the note that secret web-credentials is not found, read by the collector's event watch and attributed to Deployment demo/web through ReplicaSet. CreateContainerConfigError is a waiting reason of the container status, which the collector does not read, so it is never the Incident reason. Not observed yet.
   object:
     apiVersion: apps/v1
     kind: Deployment
     namespace: demo
     name: web
 diagnosis:
+  status: planned
   evidence:
-    - the missing Secret is named web-credentials, key api-token
-    - the container state reason CreateContainerConfigError and the secret not found message
-    - the existence of the Secret learned through the yes/no check, never by reading Secrets
+    - fact: the missing Secret is named web-credentials, key api-token
+      source: the Deployment's env valueFrom.secretKeyRef, and the note of the Failed event
+    - fact: the container state reason CreateContainerConfigError
+      source: the pod's containerStatuses[].state.waiting.reason (a planned read-only tool; the collector does not read it)
+    - fact: the existence of the Secret learned through the yes/no check, never by reading Secrets
+      source: the existence check of design 10.3 (planned)
 outcome:
   type: refusal
+  status: planned
   reason: Secrets are excluded from the MVP (design 10.10) and no catalog action creates or changes one; a person is notified.
   phase: NeedsIntervention

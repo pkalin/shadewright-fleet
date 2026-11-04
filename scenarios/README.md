@@ -30,7 +30,7 @@ repository's scripts:
 - **Both clusters:** the maintainer has created `cluster/kind` and `cluster/lab` on the remote from `main`, with their
   rulesets (ADR-0022, decision 5). The harness never creates a branch.
 - **Kind:** nothing else. `make kind-up` points the Kind cluster's Flux at `cluster/kind` (`FLEET_BRANCH`).
-- **Lab:** the lab's Flux configuration comes from `shadewright-azure` (`lab/flux.tf`), and its branch is
+- **Lab:** the lab's Flux install and its `GitRepository` come from `shadewright-azure` (`scripts/lab.sh`, values from `lab/flux.tf`), and its branch is
   `var.fleet_branch`, which defaults to `main`. Until `fleet_branch = "cluster/lab"` is set in the lab's git-ignored
   `terraform.tfvars` and applied (plan first, then an explicit yes), the lab's `GitRepository` tracks `main`, and
   `CLUSTER=lab` is refused with `tracks 'main', not cluster/lab`, on purpose: a scenario must never reach `main`.
@@ -65,8 +65,8 @@ replaces it. The branch only moves forward and its history records every switch 
 scenarios/
   schema/scenario_v1alpha1.json   JSON schema of expected.yaml
   <name>/
-    README.md                     what breaks, the expected diagnosis, the expected outcome, and why
-    expected.yaml                 the same, machine-readable (schema below)
+    README.md                     what breaks, what was observed, the expected diagnosis and outcome, and why
+    expected.yaml                 the same, machine-readable, each part marked observed or planned (schema below)
     apps/demo/<file>              the broken version of apps/demo/<file>, at the same path relative to the repo
 ```
 
@@ -93,19 +93,25 @@ name: oom                       # the folder name
 summary: The web container's memory limit is below what it needs, so it is OOMKilled and restarts.
 render: passes                  # optional; fails only for a scenario that breaks the render on purpose
 incident:
-  reason: OOMKilled             # the event or container state reason the incident must carry
+  reason: OOMKilled             # an event reason or a termination reason the collector reads, never a waiting reason
+  status: observed              # observed: seen in a run, say which in source. planned: expected, not seen yet
+  source: The kubelet writes lastState.terminated.reason; the collector's pod watch reads it.
   object:                       # the object the incident is about
     apiVersion: apps/v1
     kind: Deployment
     namespace: demo
     name: web
 diagnosis:
-  evidence:                     # facts the diagnosis must name
-    - OOMKilled from the container status
-    - the restart count
-    - the memory working set from Prometheus
+  status: planned               # no analysis step exists yet
+  evidence:                     # facts the diagnosis must name, each with where it is read from
+    - fact: OOMKilled from the container status
+      source: the pod's lastState.terminated.reason
+    - fact: the memory working set
+      source: a Prometheus query (planned)
 outcome:                        # either a pull request ...
   type: pull-request
+  status: observed
+  note: What was seen, with a link (optional).
   action: SetContainerMemoryLimit
   bounds:
     min: 64Mi
@@ -119,6 +125,7 @@ or a refusal:
 ```yaml
 outcome:
   type: refusal
+  status: planned
   reason: Changing an image is not in the catalog; a person is notified.
   phase: NeedsIntervention      # optional: Denied or NeedsIntervention, if a RemediationRequest is created at all
 ```
@@ -129,11 +136,51 @@ outcome:
 | `name` | yes | the folder name |
 | `summary` | yes | one line: what breaks (shown by `make scenario-list`) |
 | `render` | no | `passes` (default) or `fails`: whether `apps/` with the scenario passes the render check. The harness refuses a scenario whose render does not match. |
-| `incident.reason` | yes | the reason the incident must carry |
+| `incident.reason` | yes | the reason the incident must carry: a Warning event reason or a termination reason (`OOMKilled`). Container waiting reasons (`ImagePullBackOff`, `CreateContainerConfigError`) are not read by the collector, so they never qualify |
+| `incident.status` | yes | `observed` (seen in a run; `source` says which) or `planned` |
+| `incident.source` | yes | the component that emits the event or termination, and the collector path that reads it |
 | `incident.object` | yes | `kind` and `name`, optional `apiVersion` and `namespace` |
-| `diagnosis.evidence` | yes | one or more facts the diagnosis must name |
+| `diagnosis.status` | yes | `observed` or `planned` (all `planned` today: the diagnosis step is not built) |
+| `diagnosis.evidence` | yes | one or more `{fact, source}`: a fact the diagnosis must name and where it is read from |
 | `outcome.type` | yes | `pull-request` or `refusal` |
+| `outcome.status`, `outcome.note` | `status` yes | `observed` or `planned`; `note` says what was seen, with a link |
 | `outcome.action`, `outcome.bounds.min`, `outcome.bounds.max`, `outcome.paths` | for `pull-request` | the catalog action, the range the proposed value must fall in, and the only files the pull request may change (under `apps/demo/`) |
 | `outcome.reason`, `outcome.phase` | `reason` for `refusal` | why nothing may be proposed, and the phase a request ends in, if any |
 
 The file holds one document; no other fields are allowed.
+
+## Observed and planned
+
+A line in a scenario is **observed** only if someone saw it in a run, and the run is named next to it. Anything else
+is **planned**: what the code or the design says should happen. As of v0.1.0 (2026-11-04) the analyzer's collector turns
+Warning events and abnormal container terminations into Incidents; the diagnosis step, the creation of requests by
+the analyzer and the read-only tools are not built. So only the OOM scenario has an observed part: its Incidents,
+and its pull request, opened from a hand-written request. All other incident reasons are what the kubelet, the
+scheduler, KEDA and Flux are expected to emit, checked against what the collector reads, not against a cluster.
+
+The collector reads `events.k8s.io` Warning events and pods whose container terminated with `OOMKilled` or a non-zero
+exit code. It does not read container waiting reasons, so `ImagePullBackOff` and `CreateContainerConfigError` are
+never an Incident reason; the same failures show as the kubelet's `Failed` and `BackOff` events.
+
+### Which namespaces are watched
+
+The analyzer watches the namespaces in `--watch-namespaces`, and the lab sets it to `demo` only (the vendored install
+in `infrastructure/shadewright/`). Every scenario except `invalid-manifest` breaks an object in `demo`. That one
+fails in `flux-system` (the Kustomization `apps`), which is not watched, so it produces no Incident until
+`flux-system` is added there, with a RoleBinding. That widens what the analyzer reads and is a separate decision.
+
+## Evidence matrix
+
+What each layer proves today. A cell without a link has no evidence yet.
+
+| Layer | What it shows | Scenarios | Evidence |
+| --- | --- | --- | --- |
+| Schema and render | `expected.yaml` matches the schema, and `apps/` renders as the scenario declares (`make check-scenarios`) | all six | [Harness](https://github.com/pkalin/shadewright-fleet/actions/runs/41797824198) on `main` at 8fe9e16 |
+| Harness | the scenario switch refuses what it must and pushes only fast-forwards to the cluster branch (`tests/`, offline, stubbed cluster) | all six | the same Harness run |
+| Healthy baseline | `infrastructure` and `apps` become Ready on Kind with no scenario | none (baseline) | [Kind](https://github.com/pkalin/shadewright-fleet/actions/runs/41797824469) on `main` at 8fe9e16; on the lab the baseline still produced one-off startup Incidents for `worker` ([#267](https://github.com/pkalin/shadewright/issues/267)) |
+| Runtime symptom | the symptom appears on a cluster and the collector creates the Incident | `oom` only | the lab run of 2026-11-04: `OOMKilled`, `BackOff` and `Unhealthy` Incidents for `demo/web` |
+| Full acceptance | Incident, request, pull request and policy outcome end to end | `oom`, with a hand-written request | [pkalin/shadewright-fleet#26](https://github.com/pkalin/shadewright-fleet/pull/26), run as in the operator's `docs/lab-oom-acceptance.md`; the analyzer does not create the request yet |
+
+The other five scenarios stop at schema, render and harness. Next: a positive KEDA-at-ceiling scenario
+([#268](https://github.com/pkalin/shadewright/issues/268)) and a StatefulSet memory case
+([#269](https://github.com/pkalin/shadewright/issues/269)).

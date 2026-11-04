@@ -14,12 +14,20 @@ applying the commit (the polling interval is 30 seconds).
 The broken object is a plain manifest that the `apps` Kustomization applies, so source mapping (ADR-0012) maps the
 ScaledObject to `apps/demo/worker-scaledobject.yaml`.
 
-## Expected diagnosis
+## Expected Incident (planned)
 
-The diagnosis names the ScaledObject condition (`Ready` is `False`) and the trigger error from the event and the
-condition message (the unresolvable Prometheus address). It notes that `maxReplicaCount` is not involved.
+KEDA's Warning event `KEDAScalerFailed` about the ScaledObject `demo/worker`, read by the collector's event watch.
+The KEDA module's symptom source (the `Ready` condition) is built but feeds nothing yet, so an Incident exists only
+if KEDA writes that event. Not observed yet.
 
-## Expected outcome
+## Expected diagnosis (planned)
+
+The diagnosis names the ScaledObject condition (`Ready` is `False`, the module's `TriggerError` symptom) and the
+trigger error from the event note (the unresolvable Prometheus address). Trigger metadata is never read, so the
+address comes only from the error text. It notes that `maxReplicaCount` is not involved. The diagnosis step is not
+built yet.
+
+## Expected outcome (planned)
 
 Refusal. `AdjustKedaMaxReplicas` exists in the catalog, but raising `maxReplicaCount` can never fix a trigger that
 cannot read its metric (design 7), and no action edits a trigger. Any request ends `NeedsIntervention` and a person

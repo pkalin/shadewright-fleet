@@ -3,17 +3,23 @@ kind: Scenario
 name: bad-image
 summary: The web Deployment points at an image tag that does not exist, so its new pod stays in ErrImagePull and ImagePullBackOff.
 incident:
-  reason: ImagePullBackOff
+  reason: Failed
+  status: planned
+  source: The kubelet's Warning events on the pod, reasons Failed (the pull error) and BackOff (back-off pulling the image), read by the collector's event watch and attributed to Deployment demo/web through ReplicaSet. ImagePullBackOff and ErrImagePull are waiting reasons of the container status, which the collector does not read, so they are never the Incident reason. Not observed yet.
   object:
     apiVersion: apps/v1
     kind: Deployment
     namespace: demo
     name: web
 diagnosis:
+  status: planned
   evidence:
-    - the image reference ghcr.io/stefanprodan/podinfo:6.17.99
-    - the pull error (manifest unknown or not found) from the pod status and the Failed and BackOff events
+    - fact: the image reference ghcr.io/stefanprodan/podinfo:6.17.99
+      source: the Deployment's pod template, and the text of the Failed event
+    - fact: the pull error (manifest unknown or not found)
+      source: the note of the Failed and BackOff events
 outcome:
   type: refusal
+  status: planned
   reason: Changing an image is not in the catalog (SetContainerMemoryLimit and AdjustKedaMaxReplicas only); the request ends NeedsIntervention and a person is notified through a GitHub issue.
   phase: NeedsIntervention

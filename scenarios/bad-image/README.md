@@ -12,13 +12,20 @@ of Flux applying the commit: `kubectl -n demo get pods` and `kubectl -n demo get
 The broken object is a plain manifest that the `apps` Kustomization applies, so source mapping (ADR-0012) maps the
 Deployment to `apps/demo/web-deployment.yaml`.
 
-## Expected diagnosis
+## Expected Incident (planned)
 
-The diagnosis names the image reference (`ghcr.io/stefanprodan/podinfo:6.17.99`) and the pull error (manifest
-unknown or not found), taken from the pod's container status (`waiting.reason`) and the `Failed` and `BackOff`
-events. It does not guess a replacement tag.
+The collector reads Warning events and abnormal terminations, not container waiting reasons. So the Incident reason
+is not `ImagePullBackOff` (a waiting reason of the container status). It is the kubelet's Warning event reasons:
+`Failed` (the pull error) and `BackOff` (back-off pulling the image), attributed to Deployment `demo/web` through its
+ReplicaSet. Not observed yet.
 
-## Expected outcome
+## Expected diagnosis (planned)
+
+The diagnosis names the image reference (`ghcr.io/stefanprodan/podinfo:6.17.99`), from the Deployment's pod template
+and the `Failed` event, and the pull error (manifest unknown or not found), from the notes of the `Failed` and
+`BackOff` events. It does not guess a replacement tag. The diagnosis step is not built yet.
+
+## Expected outcome (planned)
 
 Refusal. Changing an image is not in the action catalog, which has two actions only (`SetContainerMemoryLimit`,
 `AdjustKedaMaxReplicas`), and a typed remediation never takes a free-form edit (ADR-0003). Any request ends
