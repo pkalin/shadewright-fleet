@@ -58,7 +58,8 @@ CLUSTER=kind|lab` commits `main`'s tree with the scenario's files over `apps/dem
 `make scenario-reset CLUSTER=kind|lab` commits `main`'s tree; both push fast-forwards only. The harness refuses
 unless the `GitRepository` `flux-system/fleet` in the current kube context tracks exactly `cluster/<CLUSTER>`. Never
 add a way for scripts here to write `main`, force-push, or create or delete a branch, and keep `push_cluster_branch`
-in `scripts/scenario.sh` the only `git push`.
+in `scripts/scenario.sh` the only `git push`. A push never uses `SCENARIO_REF` (it is for `list` and `DRY_RUN=1`
+only): `apply` refuses it without `DRY_RUN=1`, so a push is always built from `origin/main`.
 
 ## Rules
 
