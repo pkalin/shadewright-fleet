@@ -11,12 +11,17 @@ cpu`. The old pod keeps serving. The symptom shows within a minute of Flux apply
 The broken object is a plain manifest that the `apps` Kustomization applies, so source mapping (ADR-0012) maps the
 Deployment to `apps/demo/web-deployment.yaml`.
 
-## Expected diagnosis
+## Expected Incident (planned)
+
+The scheduler's Warning event `FailedScheduling` on the pending pod, attributed to Deployment `demo/web` through its
+ReplicaSet. Not observed yet.
+
+## Expected diagnosis (planned)
 
 The diagnosis names `FailedScheduling` and the insufficient resource (`Insufficient cpu`) from the event message,
-and the container's 256 CPU request.
+and the container's 256 CPU request from the pod template. The diagnosis step is not built yet.
 
-## Expected outcome
+## Expected outcome (planned)
 
 Refusal. Lowering requests or adding nodes is not in the action catalog (`SetContainerMemoryLimit` and
 `AdjustKedaMaxReplicas` only), and a typed remediation never takes a free-form edit (ADR-0003). Any request ends
