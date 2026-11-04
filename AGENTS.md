@@ -8,7 +8,8 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   through the AKS extension: a `GitRepository` named `fleet` and a Kustomization that applies this path, both in
   `flux-system`. This path holds no `flux-system` manifests of its own, only Flux `Kustomization` objects:
   `infrastructure`, then `shadewright` and `apps`, each after `infrastructure` (`dependsOn`) and independent of each
-  other, with `prune: true` and `wait: true`. The extension enforces
+  other, with `prune: true` and `wait: true` (not `apps`: its Ready is the apply result, so a broken
+  rollout does not keep the operator's source mapper from accepting it, ADR-0012). The extension enforces
   multi-tenancy, so every Flux object stays in `flux-system` and references sources in that namespace.
 - `clusters/kind/`: Flux entry point for a local or CI Kind cluster, the `infrastructure` and `apps`
   Kustomizations without substitutions (no `shadewright`). `scripts/kind.sh` creates what the lab's Flux configuration creates there: the `GitRepository`
