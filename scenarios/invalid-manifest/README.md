@@ -15,13 +15,29 @@ This is the one scenario whose render is expected to fail: `expected.yaml` says 
 accepts and checks (it refuses a scenario whose render does not match the declaration). The render check on `main`
 leaves `scenarios/` out, so this file never breaks CI.
 
-## Expected diagnosis
+## Watching `flux-system` (not set up)
 
-The diagnosis names the failing Kustomization (`flux-system/apps`), its error (the dry-run failure on
-`Service/demo/web`, a string where an integer is required) and the file, `apps/demo/web-service.yaml`, which source
-mapping (ADR-0012) finds from the object named in the error.
+The failure is on a Flux object in `flux-system`, but the analyzer watches `demo` only: the HelmRelease starts it
+with `--watch-namespaces=demo` and binds its read-only role in `demo` alone (`analyzer.watchNamespaces` in
+`infrastructure/shadewright/helmrelease.yaml`). So today this scenario produces no Incident at all, and nothing is wrong with the analyzer.
+Watching it would need `flux-system` in `--watch-namespaces` and a second RoleBinding there (the chart creates one per listed namespace),
+and then every Warning event of every Flux controller becomes an Incident candidate. That widens what the analyzer
+reads and is a decision of its own, not a change to this scenario.
 
-## Expected outcome
+## Expected Incident (planned)
+
+kustomize-controller's Warning event `ReconciliationFailed` about Kustomization `flux-system/apps`, once
+`flux-system` is watched. Not observed yet.
+
+## Expected diagnosis (planned)
+
+The diagnosis names the failing Kustomization (`flux-system/apps`) and its error (the dry-run failure on
+`Service/demo/web`, a string where an integer is required), from the Kustomization's condition and the event note.
+The file, `apps/demo/web-service.yaml`, is not found by source mapping: ADR-0012 maps only a Deployment, StatefulSet
+or ScaledObject that a Ready Kustomization lists in its inventory, and this Kustomization is not Ready and the
+object is a Service. A person (or a future read-only tool) names the file from the repository.
+
+## Expected outcome (planned)
 
 Refusal. Fixing an arbitrary manifest is not in the action catalog, and Shadewright never suspends a Kustomization,
 disables pruning or changes Flux configuration to push a fix through (design 7). Any request ends `NeedsIntervention`

@@ -1,0 +1,14 @@
+# The operator namespace, created here and not by Helm (the chart does not create it). Restricted Pod Security, like
+# the other add-ons: both Deployments meet it (non-root, RuntimeDefault seccomp, no privilege escalation, all
+# capabilities dropped, read-only root filesystem). prune: disabled, so renaming or deleting the Flux Kustomization
+# never deletes the namespace and with it every Incident and RemediationRequest.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shadewright-system
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

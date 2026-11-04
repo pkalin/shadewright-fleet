@@ -1,0 +1,36 @@
+# The Shadewright agent (analyzer and executor) from the released chart, through the OCIRepository "shadewright".
+# Release name shadewright in shadewright-system: the ServiceAccounts are shadewright-analyzer and shadewright-executor,
+# the subjects of the lab's federated credentials (shadewright-azure lab/federation.tf). The workload identity client
+# IDs are not here: they are lab values, added by ../shadewright-lab. Nothing in this directory needs an Azure value.
+#
+# clusterId is set, not left to the chart's lookup of the kube-system UID: the chart documents that GitOps tools that
+# render client-side or dry-run must set it, and a fixed ID keeps the Incident fingerprints stable. Choose it once:
+# changing it starts every Incident afresh.
+#
+# watchNamespaces: demo only, as the vendored install's config/watch did. The chart binds the read-only watch
+# ClusterRole with one RoleBinding per listed namespace; demo is created by infrastructure/namespaces, which the
+# Kustomization "shadewright" waits for.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: shadewright
+  namespace: flux-system
+spec:
+  interval: 30m
+  releaseName: shadewright
+  targetNamespace: shadewright-system
+  storageNamespace: shadewright-system
+  chartRef:
+    kind: OCIRepository
+    name: shadewright
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    clusterId: lab
+    analyzer:
+      watchNamespaces:
+        - demo

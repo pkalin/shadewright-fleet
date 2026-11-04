@@ -70,16 +70,21 @@ EOF
   cat <<EOF
 incident:
   reason: OOMKilled
+  status: planned
+  source: test
   object:
     apiVersion: apps/v1
     kind: Deployment
     namespace: demo
     name: web
 diagnosis:
+  status: planned
   evidence:
-    - OOMKilled
+    - fact: OOMKilled
+      source: test
 outcome:
   type: refusal
+  status: planned
   reason: test
 EOF
   [ -z "${3:-}" ] || echo "$3"
@@ -123,6 +128,9 @@ scenario linked
 mkdir -p scenarios/linked/apps/demo
 ln -s ../../../../README.md scenarios/linked/apps/demo/web.yaml
 scenario extra-field '' 'unexpected: true'
+scenario unmarked
+# An expectation without observed or planned, and evidence without a source, is refused.
+sed -e '/^  status: /d' -e '/^  source: test$/d' -e '/^      source: test$/d' scenarios/unmarked/expected.yaml >"$T/x" && mv "$T/x" scenarios/unmarked/expected.yaml
 scenario misnamed
 sed 's/^name: misnamed$/name: someone-else/' scenarios/misnamed/expected.yaml >"$T/x" && mv "$T/x" scenarios/misnamed/expected.yaml
 mkdir -p scenarios/no-readme
@@ -208,6 +216,7 @@ check "refusals left main and cluster/lab alone" untouched
 # --- scenario contents ------------------------------------------------------------------------------------------------
 
 for case_ in "outside:is outside apps/demo/" "linked:is not a regular file" "extra-field:does not match" \
+  "unmarked:does not match" \
   "misnamed:name must be misnamed" "no-readme:README.md is missing" \
   "undeclared:render fails, but its expected.yaml says render: passes" \
   "says-fails:render passes, but its expected.yaml says render: fails" \
@@ -347,7 +356,7 @@ check "list skips the schema folder" sh -c "! printf '%s' \"\$1\" | grep -q '^  
 run scripts/scenario.sh check
 expect_fail "check reports every broken fixture, not only the first" "scenarios/outside/infrastructure/x.yaml is outside apps/demo/"
 check "check reports the later ones too" sh -c "printf '%s' \"\$1\" | grep -q 'new-dir/apps/demo/sub/extra.yaml'" _ "$OUT"
-git rm -rq scenarios/outside scenarios/linked scenarios/extra-field scenarios/misnamed scenarios/no-readme \
+git rm -rq scenarios/outside scenarios/linked scenarios/extra-field scenarios/unmarked scenarios/misnamed scenarios/no-readme \
   scenarios/new-file scenarios/new-unlisted scenarios/new-dir scenarios/block-render
 git commit -q -m "drop the invalid fixtures"
 run scripts/scenario.sh check

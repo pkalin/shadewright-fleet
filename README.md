@@ -1,5 +1,9 @@
 <p align="center"><img src=".github/logo.png" alt="Shadewright" width="120"></p>
 
+<p align="center">
+  Part of <a href="https://shadewright.io">Shadewright</a>, a safe-remediation controller for Kubernetes clusters run with GitOps: it turns untrusted proposals, from rules or an LLM, into typed, bounded changes tied to policy and to the object's real source in Git, delivers them only as reviewed pull requests, and verifies the effect.
+</p>
+
 # shadewright-fleet
 
 The GitOps repository for the [Shadewright](https://shadewright.io) lab cluster, synced by Flux. The Shadewright operator opens its remediation pull requests here, so this repository's layout and branch rules are part of the demo.
@@ -14,7 +18,7 @@ clusters/lab/           Flux entry point, applied by the Flux configuration from
   apps.yaml             Flux Kustomization for apps/, after infrastructure is ready
 clusters/kind/          the same for a Kind cluster (scripts/kind.sh), without Azure substitutions
 infrastructure/         cluster add-ons and the namespaces apps/ needs
-  shadewright/          the agent, vendored from the operator repo (scripts/vendor-shadewright.sh, VENDOR)
+  shadewright/          the agent from the released Helm chart: OCIRepository (digest, cosign) and HelmRelease
   shadewright-lab/      lab values for it (workload identity client IDs), applied by clusters/lab/shadewright.yaml
   namespaces/           the demo Namespace, created before anything binds in it
   keda/                 KEDA (upstream chart, one replica per component)
@@ -30,6 +34,18 @@ scripts/tools.env       every pinned tool version and checksum (make tools insta
 
 Environment values (tenant and identity client IDs, endpoints, the operator namespace) are never in this
 repository: they arrive as Flux `postBuild` substitutions (`${VAR}`) from the lab's Terraform.
+
+## Kind
+
+`clusters/kind` does not install the agent (it never did: the agent needs the lab's workload identity). To try the
+released chart on a Kind cluster, install it by hand from the pinned digest in
+`infrastructure/shadewright/ocirepository.yaml` (verify it with `cosign verify` first; the executor has no identity
+there, so it stays idle):
+
+```bash
+helm install shadewright oci://ghcr.io/pkalin/charts/shadewright@sha256:<digest> \
+  --namespace shadewright-system --create-namespace --set clusterId=kind --set 'analyzer.watchNamespaces={demo}'
+```
 
 ## Checks
 
