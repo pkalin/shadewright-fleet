@@ -11,8 +11,8 @@
 # Environment:
 #   CLUSTER       kind or lab. Required by apply and reset; must match the branch Flux tracks in the current context.
 #   SCENARIO_REF  where the scenario's files are read from (default: origin/main). apps/ always comes from origin/main.
-#                 Only with list or DRY_RUN=1: apply and reset refuse it without DRY_RUN=1, so a push is always built
-#                 from origin/main and unreviewed local files never reach a cluster branch.
+#                 Only with list or DRY_RUN=1: apply refuses it without DRY_RUN=1, so a push is always built from
+#                 origin/main and unreviewed local files never reach a cluster branch. reset never reads it.
 #   DRY_RUN=1     build, render and show the commit, but do not push.
 #   RECONCILE=0   do not ask Flux to fetch at once after the push (it polls anyway).
 #   FLEET_REMOTE  the Git remote of this repository (default: origin).
@@ -279,8 +279,9 @@ cmd_switch() {
   local subject commit
   require_cluster
   cluster="$CLUSTER"
-  # A push is always built from origin/main (ADR-0022): refuse SCENARIO_REF before anything else, pushes included.
-  if [ -n "${SCENARIO_REF:-}" ] && [ "${DRY_RUN:-0}" != 1 ]; then
+  # A push is always built from origin/main (ADR-0022): refuse SCENARIO_REF before any kubectl or Git call. Reset never
+  # reads it (it commits main's tree), so a stale export cannot block an emergency reset.
+  if [ "$mode" = apply ] && [ -n "${SCENARIO_REF:-}" ] && [ "${DRY_RUN:-0}" != 1 ]; then
     die "SCENARIO_REF is only for DRY_RUN=1 (or list): a push is built from ${REMOTE}/main, so unset SCENARIO_REF or set DRY_RUN=1"
   fi
   if [ "$mode" = apply ]; then
