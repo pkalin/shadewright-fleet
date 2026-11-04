@@ -3,7 +3,6 @@
 # limit, SetContainerMemoryLimit), so keep every value literal: no patches or generators (ADR-0012).
 # Image: https://github.com/stefanprodan/podinfo (6.17.0, multi-arch index digest on ghcr.io); the image's
 # user "app" is uid 100, gid 101.
-# SCENARIO bad-image (scenarios/bad-image): the image tag does not exist (and has no digest), so the pod cannot pull it.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -37,7 +36,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: ghcr.io/stefanprodan/podinfo:6.17.99
+          image: ghcr.io/stefanprodan/podinfo:6.17.0@sha256:fa2f27c1a8561097e5144bfc0853eba6054d743b68b03de4cad4675616ddefb0
           imagePullPolicy: IfNotPresent
           command:
             - ./podinfo
