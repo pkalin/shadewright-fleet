@@ -18,7 +18,9 @@ make kind-down
 `CLUSTER` is `kind` or `lab` and is always explicit. Options, as environment variables or `make` arguments:
 `DRY_RUN=1` builds, renders and shows the commit without pushing; `SCENARIO_REF=<ref>` reads the scenario's files
 from another commit (a local branch with a scenario that is not merged yet; `apps/` still comes from
-`origin/main`); `RECONCILE=0` skips asking Flux to fetch at once.
+`origin/main`) and works only with `list` and `DRY_RUN=1`: a push (apply or reset) with `SCENARIO_REF` set is refused
+before anything is pushed, so a cluster branch only ever gets scenarios reviewed on `origin/main`; `RECONCILE=0`
+skips asking Flux to fetch at once.
 
 ## Before the first run
 

@@ -302,14 +302,20 @@ git add -A
 git commit -q -m wip
 run env CLUSTER=kind scripts/scenario.sh apply wip-only
 expect_fail "a scenario only on a local branch needs SCENARIO_REF" "no scenario wip-only on origin/main"
+K4B="$(remote_ref cluster/kind)"
 run env CLUSTER=kind SCENARIO_REF=wip scripts/scenario.sh apply wip-only
-expect_ok "SCENARIO_REF reads the scenario from a local commit" "pushed"
-K5="$(remote_ref cluster/kind)"
-git fetch -q origin
+expect_fail "a push with SCENARIO_REF is refused" "SCENARIO_REF is only for DRY_RUN=1"
+check "the refused apply pushed nothing" test "$(remote_ref cluster/kind)" = "$K4B"
+run env CLUSTER=kind SCENARIO_REF=wip scripts/scenario.sh reset
+expect_fail "a reset with SCENARIO_REF is refused" "SCENARIO_REF is only for DRY_RUN=1"
+check "the refused reset pushed nothing" test "$(remote_ref cluster/kind)" = "$K4B"
+run env CLUSTER=kind SCENARIO_REF=wip DRY_RUN=1 scripts/scenario.sh apply wip-only
+expect_ok "DRY_RUN=1 with SCENARIO_REF reads the scenario from a local commit" "not pushed"
+check "the dry run pushed nothing" test "$(remote_ref cluster/kind)" = "$K4B"
+K5="$(printf '%s' "$OUT" | sed -n 's/.*DRY_RUN=1: built \([0-9a-f]*\) on.*/\1/p')"
+check "the dry run reported its commit" test -n "$K5"
 check "apps/ still comes from origin/main" test "$(git show "${K5}:apps/demo/worker.yaml")" = "$(git show "${MAIN0}:apps/demo/worker.yaml")"
 check "only the scenario's file differs from main" test "$(git diff --name-only "$MAIN0" "$K5")" = "apps/demo/web.yaml"
-run env CLUSTER=kind scripts/scenario.sh reset
-expect_ok "reset after a SCENARIO_REF scenario" "pushed"
 git checkout -q main
 
 # --- list and check ---------------------------------------------------------------------------------------------------
