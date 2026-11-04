@@ -12,11 +12,13 @@ keeps serving. The symptom shows within a minute of Flux applying the commit.
 The broken object is a plain manifest that the `apps` Kustomization applies, so source mapping (ADR-0012) maps the
 Deployment to `apps/demo/web-deployment.yaml`.
 
-## Expected Incident (planned)
+## Expected Incident (observed on Kind, 2026-11-04)
 
 `CreateContainerConfigError` is a waiting reason of the container status, which the collector does not read, so it
 is not the Incident reason. The Incident carries the kubelet's Warning event reason `Failed`, whose note says the
-Secret `web-credentials` is not found, attributed to Deployment `demo/web` through its ReplicaSet. Not observed yet.
+Secret `web-credentials` is not found, attributed to Deployment `demo/web` through its ReplicaSet. Observed on Kind on 2026-11-04: one Incident, kind
+`Deployment`, subject `demo/web`, reason `Failed`, count 1, symptom `Error: secret "web-credentials" not found`,
+about 30 seconds after Flux applied the commit.
 
 ## Expected diagnosis (planned)
 
