@@ -1,0 +1,25 @@
+name: Dependency review
+
+# Fails a pull request that adds or bumps a dependency with a known vulnerability of moderate severity or
+# higher. Reads the dependency graph diff from the GitHub API; nothing is checked out or executed.
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Review dependencies
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate

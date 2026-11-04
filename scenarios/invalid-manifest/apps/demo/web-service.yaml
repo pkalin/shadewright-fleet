@@ -1,0 +1,18 @@
+# SCENARIO invalid-manifest (scenarios/invalid-manifest): spec.ports[0].port is a string, so the Service fails schema validation and the apps Kustomization cannot apply.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: web
+    app.kubernetes.io/part-of: demo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: web
+  ports:
+    - name: http
+      port: "eighty"
+      targetPort: http
+      protocol: TCP

@@ -32,7 +32,11 @@ fi
 status=0
 for dir in "${dirs[@]}"; do
   echo "== ${dir}"
-  render_dir "$dir" || status=1
+  # The pinned CRD catalog has no schema for CustomResourceDefinition, so the vendored Shadewright CRDs (generated and
+  # tested in the operator repository) are skipped, in these two directories only. Every other object there is checked.
+  skip_kinds=""
+  case "$dir" in infrastructure/shadewright | infrastructure/shadewright-lab) skip_kinds="CustomResourceDefinition" ;; esac
+  render_dir "$dir" "$dir" "$skip_kinds" || status=1
 done
 
 # Every Flux Kustomization in clusters/ must point at a directory of this repository that has a kustomization.

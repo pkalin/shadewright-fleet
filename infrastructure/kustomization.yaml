@@ -1,4 +1,5 @@
-# Cluster add-ons, the namespaces apps/ needs, and later the Shadewright install.
+# Cluster add-ons and the namespaces apps/ needs. The Shadewright install (shadewright/, shadewright-lab/) is not
+# listed here: it needs the lab's workload identities, so clusters/lab/shadewright.yaml applies it on its own.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
