@@ -12,18 +12,25 @@ of Flux applying the commit: `kubectl -n demo get pods` and `kubectl -n demo get
 The broken object is a plain manifest that the `apps` Kustomization applies, so source mapping (ADR-0012) maps the
 Deployment to `apps/demo/web-deployment.yaml`.
 
-## Expected Incident (planned)
+## Expected Incident (observed on Kind, 2026-11-04)
+ The collector reads Warning events and abnormal terminations, not container waiting reasons. So the Incident reason
+is not `ImagePullBackOff` (a waiting reason of the container status). It is the kubelet's Warning event reason
+`Failed`, attributed to Deployment `demo/web` through its ReplicaSet. Observed on Kind on 2026-11-04: three
+Incidents on `Deployment demo/web`, each with reason `Failed` and count 1, told apart by the symptom: the pull error
+(`Failed to pull image "ghcr.io/stefanprodan/podinfo:6.17.99": ... not found`), `Error: ErrImagePull` and `Error:
+ImagePullBackOff`. The kubelet's image-pull `BackOff` event ("Back-off pulling image") is type `Normal`, so it is
+not read and `BackOff` is not an Incident reason here. The restart `BackOff` of a
+crash-looping container is a Warning and is read, as in `oom`.
 
-The collector reads Warning events and abnormal terminations, not container waiting reasons. So the Incident reason
-is not `ImagePullBackOff` (a waiting reason of the container status). It is the kubelet's Warning event reasons:
-`Failed` (the pull error) and `BackOff` (back-off pulling the image), attributed to Deployment `demo/web` through its
-ReplicaSet. Not observed yet.
+A fourth Incident, reason `ContainerStatusUnknown` (exit code 137), appeared on `web` in the same window. It came
+most likely from the pod left over from the previous scenario run being terminated by the reset; it was not
+reproduced and is not part of this scenario.
 
 ## Expected diagnosis (planned)
 
 The diagnosis names the image reference (`ghcr.io/stefanprodan/podinfo:6.17.99`), from the Deployment's pod template
-and the `Failed` event, and the pull error (manifest unknown or not found), from the notes of the `Failed` and
-`BackOff` events. It does not guess a replacement tag. The diagnosis step is not built yet.
+and the `Failed` event, and the pull error (manifest unknown or not found), from the notes of the `Failed` events. It does not
+guess a replacement tag. The diagnosis step is not built yet.
 
 ## Expected outcome (planned)
 

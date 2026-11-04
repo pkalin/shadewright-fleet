@@ -50,7 +50,7 @@
       ],
       "properties": {
         "reason": {
-          "description": "The reason the Incident must carry: an event reason (FailedScheduling, Failed, BackOff) or a container termination reason (OOMKilled). The collector reads Warning events and terminations only, never waiting reasons such as ImagePullBackOff or CreateContainerConfigError.",
+          "description": "The reason the Incident must carry: an event reason (FailedScheduling, Failed, BackOff of a restarting container) or a container termination reason (OOMKilled). The collector reads Warning events and terminations only, never waiting reasons such as ImagePullBackOff or CreateContainerConfigError.",
           "type": "string",
           "pattern": "^[A-Za-z][A-Za-z0-9]*$"
         },
