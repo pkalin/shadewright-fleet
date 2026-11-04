@@ -1,5 +1,9 @@
 <p align="center"><img src=".github/logo.png" alt="Shadewright" width="120"></p>
 
+<p align="center">
+  Part of <a href="https://shadewright.io">Shadewright</a>, a safe-remediation controller for Kubernetes clusters run with GitOps: it turns untrusted proposals, from rules or an LLM, into typed, bounded changes tied to policy and to the object's real source in Git, delivers them only as reviewed pull requests, and verifies the effect.
+</p>
+
 # shadewright-fleet
 
 The GitOps repository for the [Shadewright](https://shadewright.io) lab cluster, synced by Flux. The Shadewright operator opens its remediation pull requests here, so this repository's layout and branch rules are part of the demo.
