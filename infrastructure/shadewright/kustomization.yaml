@@ -1,0 +1,9 @@
+# The vendored Shadewright install: the operator repository's config/default and config/watch, built by
+# scripts/vendor-shadewright.sh at the commit recorded in VENDOR. Not listed in infrastructure/kustomization.yaml:
+# it needs the lab's workload identities, so only clusters/lab applies it, through ../shadewright-lab. Do not edit
+# the vendored files; run the script with another commit.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - install.yaml
+  - watch-demo.yaml

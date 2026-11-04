@@ -10,9 +10,12 @@ The GitOps repository for the [Shadewright](https://shadewright.io) lab cluster,
 clusters/lab/           Flux entry point, applied by the Flux configuration from shadewright-azure
   kustomization.yaml
   infrastructure.yaml   Flux Kustomization for infrastructure/
+  shadewright.yaml      Flux Kustomization for the agent, after infrastructure, independent of apps
   apps.yaml             Flux Kustomization for apps/, after infrastructure is ready
 clusters/kind/          the same for a Kind cluster (scripts/kind.sh), without Azure substitutions
-infrastructure/         cluster add-ons and the namespaces apps/ needs (Shadewright later)
+infrastructure/         cluster add-ons and the namespaces apps/ needs
+  shadewright/          the agent, vendored from the operator repo (scripts/vendor-shadewright.sh, VENDOR)
+  shadewright-lab/      lab values for it (workload identity client IDs), applied by clusters/lab/shadewright.yaml
   namespaces/           the demo Namespace, created before anything binds in it
   keda/                 KEDA (upstream chart, one replica per component)
   prometheus/           minimal Prometheus: server, kube-state-metrics, kubelet and cAdvisor, 24h retention
