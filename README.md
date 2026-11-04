@@ -42,16 +42,18 @@ with `scripts/render.sh`. The full rules and planned layout are in [AGENTS.md](A
 
 ## Rules on `main`
 
-Flux applies whatever lands on `main`, and the Shadewright operator opens its pull requests here, so `main`
-takes changes only through a reviewed pull request:
+`main` is the source of truth. On the lab, Flux tracks its own branch, `cluster/lab`, not `main`
+([ADR-0022](https://github.com/pkalin/shadewright/blob/main/docs/adr/0022-scenario-switch-and-clusters.md)), which
+holds the same tree as `main` between scenarios. The Shadewright operator opens its pull requests against the
+branch Flux tracks, and `main` takes changes only through a reviewed pull request:
 
 - **One approval of the most recent push**, and approvals are dismissed when new commits arrive. The operator's
   GitHub App cannot approve its own pull request, so nothing it proposes reaches the cluster without a person.
 - **Code owner review** (`.github/CODEOWNERS`).
-- **Required checks:** `Conventional PR title` and `Render manifests`. A change that does not render never merges.
-  `Path guard` (a pull request that touches anything outside `.github/shadewright-paths.txt`, read from the base
-  branch, fails and needs a human) becomes required once the maintainer applies the ruleset. Code owner review keeps
-  `.github/`, which holds the guard itself, in human hands.
+- **Required checks:** `Conventional PR title`, `Render manifests`, `Harness tests`, `Kind baseline`,
+  `Workflow lint`, `Dependency review` and `Path guard`. A change that does not render never merges. `Path guard`
+  (a pull request that touches anything outside `.github/shadewright-paths.txt`, read from the base branch, fails
+  and needs a human) and code owner review keep `.github/`, which holds the guard itself, in human hands.
 - **Squash merge only**; no force pushes, no deletion of `main`.
 - **Bypass:** only the repository admin role, and only for pull requests, so the maintainer (a solo maintainer
   cannot approve their own pull request) can still merge theirs. GitHub logs every bypass. The GitHub App is
