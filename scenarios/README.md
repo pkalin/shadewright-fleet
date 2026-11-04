@@ -30,7 +30,7 @@ repository's scripts:
 - **Both clusters:** the maintainer has created `cluster/kind` and `cluster/lab` on the remote from `main`, with their
   rulesets (ADR-0022, decision 5). The harness never creates a branch.
 - **Kind:** nothing else. `make kind-up` points the Kind cluster's Flux at `cluster/kind` (`FLEET_BRANCH`).
-- **Lab:** the lab's Flux configuration comes from `shadewright-azure` (`lab/flux.tf`), and its branch is
+- **Lab:** the lab's Flux install and its `GitRepository` come from `shadewright-azure` (`scripts/lab.sh`, values from `lab/flux.tf`), and its branch is
   `var.fleet_branch`, which defaults to `main`. Until `fleet_branch = "cluster/lab"` is set in the lab's git-ignored
   `terraform.tfvars` and applied (plan first, then an explicit yes), the lab's `GitRepository` tracks `main`, and
   `CLUSTER=lab` is refused with `tracks 'main', not cluster/lab`, on purpose: a scenario must never reach `main`.

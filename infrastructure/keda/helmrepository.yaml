@@ -1,4 +1,4 @@
-# Upstream KEDA charts. The AKS Flux extension enforces multi-tenancy, so sources and releases stay in
+# Upstream KEDA charts. The lab's Flux runs with --no-cross-namespace-refs, so sources and releases stay in
 # flux-system; the release itself installs into the keda namespace (targetNamespace).
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
