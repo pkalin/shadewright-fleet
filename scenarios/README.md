@@ -161,8 +161,9 @@ expected to emit, checked against what the collector reads, not against a cluste
 
 The collector reads `events.k8s.io` Warning events and pods whose container terminated with `OOMKilled` or a non-zero
 exit code. It does not read container waiting reasons, so `ImagePullBackOff` and `CreateContainerConfigError` are
-never an Incident reason; the same failures show as the kubelet's `Failed` events (its `BackOff` event is type
-`Normal`, which the collector does not read).
+never an Incident reason; the same failures show as the kubelet's `Failed` events (its image-pull `BackOff` event,
+"Back-off pulling image", is type `Normal`, which the collector does not read; the restart `BackOff` of a
+crash-looping container is a Warning, as in `oom`).
 
 ### Which namespaces are watched
 
