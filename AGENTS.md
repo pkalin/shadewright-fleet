@@ -17,8 +17,7 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   `fleet` and a Kustomization `kind` that applies this path. Nothing applied from `clusters/kind/` may need an Azure
   value, so Azure-only parts (the Shadewright install with workload identity) go into a path only `clusters/lab`
   applies.
-- `infrastructure/`: cluster add-ons and the namespaces `apps/` needs; later Shadewright itself (Helm chart from
-  the operator repo).
+- `infrastructure/`: cluster add-ons and the namespaces `apps/` needs; Shadewright itself (Helm chart from the operator repo's release).
   - `namespaces/`: the `demo` Namespace. It belongs to the demo workloads but lives here because infrastructure
     objects bind in it before `apps` is applied (the analyzer's RoleBinding from the operator's `config/watch`,
     Prometheus' scrape target). Flux applies Namespaces before other objects of the same Kustomization, and
@@ -28,15 +27,21 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   - `prometheus/`: a minimal Prometheus (ADR-0017): server and kube-state-metrics, kubelet and cAdvisor
     targets, 24h retention on an emptyDir, no Alertmanager or Grafana. In-cluster URL
     `http://prometheus-server.prometheus.svc`.
-  - `shadewright/`: the agent (analyzer and executor), vendored: `kustomize build` of the operator's `config/default`
-    and `config/watch` (namespace `demo`) at the commit in `VENDOR`, images pinned by digest. Never edit
-    `install.yaml`, `watch-demo.yaml` or `VENDOR` by hand: `scripts/vendor-shadewright.sh <commit> --analyzer-digest
-    sha256:... --executor-digest sha256:...` regenerates them and refuses a tag. Not listed in
-    `infrastructure/kustomization.yaml`: `infrastructure/shadewright-lab/` (the two workload identity client IDs as
-    `${VAR}` substitutions, each tied to a Terraform output in its header) is applied only by
-    `clusters/lab/shadewright.yaml`, after `infrastructure`; nothing depends on it, so a broken agent cannot block `apps`.
-    `make check-vendor` (CI, needs network) reruns the script at the commit in `VENDOR` and fails on any diff, so a
-    hand edit of the vendored files cannot land; `tests/vendor_test.sh` covers the script offline.
+  - `shadewright/`: the agent (analyzer and executor), installed from the released Helm chart: an `OCIRepository`
+    (`oci://ghcr.io/pkalin/charts/shadewright`) pinned by `ref.digest`, never a tag or range, with `verify.provider:
+    cosign` and `matchOIDCIdentity` for the exact chart workflow on the release tag, and a `HelmRelease` with `chartRef`
+    to it (release `shadewright`, `targetNamespace` and `storageNamespace` `shadewright-system`). The chart pins the
+    executor and analyzer image digests itself. The `shadewright-system` Namespace is a manifest here (restricted
+    Pod Security, `prune: disabled`), not created by Helm. Values: `clusterId: lab` (set, because helm-controller must
+    not depend on the chart's `lookup`; choose once, it is hashed into every Incident fingerprint) and
+    `analyzer.watchNamespaces: [demo]`. To upgrade, take the chart digest and tag from the release, run `cosign
+    verify` (operator `docs/upgrade-uninstall.md`), then change the digest and the tag in the `subject` together.
+    Not listed in `infrastructure/kustomization.yaml`: `infrastructure/shadewright-lab/` (patches the two workload
+    identity client IDs into the HelmRelease values as `${VAR}` substitutions, each tied to a Terraform output in its
+    header) is applied only by `clusters/lab/shadewright.yaml`, after `infrastructure`; nothing depends on it, so a
+    broken agent cannot block `apps`. The Kind cluster does not install the agent through Flux; see README, "Kind".
+    Switching a running lab from the old vendored install is not supported (Helm refuses to adopt the existing CRDs
+    and RBAC): the lab is destroyed between sessions, so a fresh lab installs the chart cleanly.
   - Each add-on has its own namespace (restricted Pod Security labels, default-deny NetworkPolicy and explicit
     allows) and a `HelmRepository` and `HelmRelease` in `flux-system` (multi-tenancy) with `targetNamespace`.
     Charts are pinned to exact versions and images to tag and digest in the values; bump them together.

@@ -2,7 +2,6 @@
 # (macOS) and later: every recipe is one call of a script in scripts/, which does the work and the checks.
 #
 #   make tools                                # pinned kustomize, kubeconform, kind, kubectl, shellcheck into bin/
-#   make check-vendor                         # (network) the vendored Shadewright install equals a fresh build
 #   make lint test render                     # shellcheck, offline harness tests, the render check
 #   make kind-up kind-wait                    # a Kind cluster whose Flux tracks cluster/kind, then its baseline
 #   make scenario-list
@@ -18,7 +17,7 @@ export KIND_CLUSTER_NAME FLEET_URL FLEET_BRANCH FLEET_COMMIT FLEET_REF_NAME EXPE
 
 SCRIPTS := $(wildcard scripts/*.sh) $(wildcard tests/*.sh)
 
-.PHONY: help tools lint test render check-vendor check-scenarios kind-up kind-wait kind-down scenario-list scenario-reset
+.PHONY: help tools lint test render check-scenarios kind-up kind-wait kind-down scenario-list scenario-reset
 
 help:
 	@sed -n '1,/^$$/p' Makefile | sed 's/^# \{0,1\}//'
@@ -34,9 +33,6 @@ test:
 
 render:
 	scripts/render.sh
-
-check-vendor:
-	scripts/check-vendor.sh
 
 check-scenarios:
 	scripts/scenario.sh check --render

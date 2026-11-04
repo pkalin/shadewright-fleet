@@ -1,5 +1,5 @@
-# The Shadewright agent (analyzer and executor), vendored from the operator repository (infrastructure/shadewright,
-# see its VENDOR file). After infrastructure, which creates the demo namespace its RoleBinding lives in. Nothing
+# The Shadewright agent (analyzer and executor), from the released chart (infrastructure/shadewright:
+# an OCIRepository pinned by digest and verified with cosign, and a HelmRelease). After infrastructure, which creates the demo namespace its RoleBinding lives in. Nothing
 # depends on it: a broken agent image must not block the demo workloads or a scenario reset. The client IDs are the
 # lab's workload identities, forwarded from the parent (shadewright-azure lab/flux.tf) because substitutions apply only to the
 # Kustomization that declares them.

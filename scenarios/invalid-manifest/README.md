@@ -17,10 +17,10 @@ leaves `scenarios/` out, so this file never breaks CI.
 
 ## Watching `flux-system` (not set up)
 
-The failure is on a Flux object in `flux-system`, but the analyzer watches `demo` only: the vendored install starts it
-with `--watch-namespaces=demo` and binds its read-only role in `demo` alone (`infrastructure/shadewright/install.yaml`
-and `watch-demo.yaml`). So today this scenario produces no Incident at all, and nothing is wrong with the analyzer.
-Watching it would need `flux-system` in `--watch-namespaces` and a second RoleBinding there (operator `config/watch`),
+The failure is on a Flux object in `flux-system`, but the analyzer watches `demo` only: the HelmRelease starts it
+with `--watch-namespaces=demo` and binds its read-only role in `demo` alone (`analyzer.watchNamespaces` in
+`infrastructure/shadewright/helmrelease.yaml`). So today this scenario produces no Incident at all, and nothing is wrong with the analyzer.
+Watching it would need `flux-system` in `--watch-namespaces` and a second RoleBinding there (the chart creates one per listed namespace),
 and then every Warning event of every Flux controller becomes an Incident candidate. That widens what the analyzer
 reads and is a decision of its own, not a change to this scenario.
 
