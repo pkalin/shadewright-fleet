@@ -1,7 +1,7 @@
 # The Shadewright agent (analyzer and executor), from the released chart (infrastructure/shadewright:
 # an OCIRepository pinned by digest and verified with cosign, and a HelmRelease). After infrastructure, which creates the demo namespace its RoleBinding lives in. Nothing
-# depends on it: a broken agent image must not block the demo workloads or a scenario reset. The client IDs are the
-# lab's workload identities, forwarded from the parent (shadewright-azure lab/flux.tf) because substitutions apply only to the
+# depends on it: a broken agent image must not block the demo workloads or a scenario reset. The client IDs and the model endpoint suffix are the
+# lab's values, forwarded from the parent (shadewright-azure lab/flux.tf) because substitutions apply only to the
 # Kustomization that declares them.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -24,3 +24,4 @@ spec:
     substitute:
       ANALYZER_CLIENT_ID: "${ANALYZER_CLIENT_ID}"
       EXECUTOR_CLIENT_ID: "${EXECUTOR_CLIENT_ID}"
+      MODEL_ENDPOINT_SUFFIX: "${MODEL_ENDPOINT_SUFFIX}"
