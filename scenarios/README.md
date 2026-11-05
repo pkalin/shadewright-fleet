@@ -178,12 +178,12 @@ What each layer proves today. A cell without a link has no evidence yet.
 
 | Layer | What it shows | Scenarios | Evidence |
 | --- | --- | --- | --- |
-| Schema and render | `expected.yaml` matches the schema, and `apps/` renders as the scenario declares (`make check-scenarios`) | all six | [Harness](https://github.com/pkalin/shadewright-fleet/actions/runs/41797824198) on `main` at 8fe9e16 |
-| Harness | the scenario switch refuses what it must and pushes only fast-forwards to the cluster branch (`tests/`, offline, stubbed cluster) | all six | the same Harness run |
+| Schema and render | `expected.yaml` matches the schema, and `apps/` renders as the scenario declares (`make check-scenarios`) | the six before `statefulset-oom` | [Harness](https://github.com/pkalin/shadewright-fleet/actions/runs/41797824198) on `main` at 8fe9e16 |
+| Harness | the scenario switch refuses what it must and pushes only fast-forwards to the cluster branch (`tests/`, offline, stubbed cluster) | the six before `statefulset-oom` | the same Harness run |
 | Healthy baseline | `infrastructure` and `apps` become Ready on Kind with no scenario | none (baseline) | [Kind](https://github.com/pkalin/shadewright-fleet/actions/runs/41797824469) on `main` at 8fe9e16; on the lab the baseline still produced one-off startup Incidents for `worker` ([#267](https://github.com/pkalin/shadewright/issues/267)) |
 | Runtime symptom | the symptom appears on a cluster and the collector creates the Incident | `oom`, `missing-secret`, `bad-image` | `oom`: the lab run of 2026-11-04 (`OOMKilled`, `BackOff` and `Unhealthy` Incidents for `demo/web`). `missing-secret` and `bad-image`: a Kind run of 2026-11-04 with the vendored agent applied by hand (`Failed` Incidents for `demo/web`, see each README) |
 | Full acceptance | Incident, request, pull request and policy outcome end to end | `oom`, with a hand-written request | [pkalin/shadewright-fleet#26](https://github.com/pkalin/shadewright-fleet/pull/26), run as in the operator's `docs/lab-oom-acceptance.md`; the analyzer does not create the request yet |
 
-The other three scenarios stop at schema, render and harness. Next: a positive KEDA-at-ceiling scenario
-([#268](https://github.com/pkalin/shadewright/issues/268)) and a StatefulSet memory case
-([#269](https://github.com/pkalin/shadewright/issues/269)).
+The other three scenarios stop at schema, render and harness, and so does `statefulset-oom` (the StatefulSet case,
+[#269](https://github.com/pkalin/shadewright/issues/269)): its run on Kind or the lab is planned. Next: a positive
+KEDA-at-ceiling scenario ([#268](https://github.com/pkalin/shadewright/issues/268)).
