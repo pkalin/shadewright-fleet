@@ -149,7 +149,13 @@ spec:
       kubernetes-services:
         enabled: false
       # Every 15s for the demo pods only (a handful of series), so KEDA's rate() window holds enough samples.
+      # honor_labels is off (the chart's default is on): a pod in demo is a tenant, and with it on, the labels it
+      # exposes (namespace, pod, container, job, instance) win over the ones Prometheus sets, so a pod could
+      # publish a series in another pod's or namespace's name, for example a kube-state-metrics name the
+      # analyzer reads as evidence. Off, a clashing label is kept as exported_<name> and the target's own labels
+      # stay authoritative. KEDA's query uses only labels Prometheus sets (namespace, app_kubernetes_io_name).
       kubernetes-pods:
+        honor_labels: false
         scrape_interval: 15s
         kubernetes_sd_configs:
           - role: pod
