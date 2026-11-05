@@ -1,0 +1,18 @@
+# Headless Service of the cache StatefulSet (spec.serviceName): per-pod DNS names, no cluster IP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: cache
+    app.kubernetes.io/part-of: demo
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: cache
+  ports:
+    - name: http
+      port: 9898
+      targetPort: http
+      protocol: TCP
