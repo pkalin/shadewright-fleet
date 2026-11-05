@@ -40,6 +40,9 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
     identity client IDs into the HelmRelease values as `${VAR}` substitutions, each tied to a Terraform output in its
     header) is applied only by `clusters/lab/shadewright.yaml`, after `infrastructure`; nothing depends on it, so a
     broken agent cannot block `apps`. The Kind cluster does not install the agent through Flux; see README, "Kind".
+    `infrastructure/shadewright-lab/` also turns the model analysis on for an evaluation run (not production): triage
+    model, `endpointSuffixes` limited to the lab's own AI Services host (`${MODEL_ENDPOINT_SUFFIX}`) and
+    `actionPolicies`. The daily cap (`maxAnalysesPerDay`) is in the hand-applied `RemediationSettings`, not here.
     Switching a running lab from the old vendored install is not supported (Helm refuses to adopt the existing CRDs
     and RBAC): the lab is destroyed between sessions, so a fresh lab installs the chart cleanly.
   - Each add-on has its own namespace (restricted Pod Security labels, default-deny NetworkPolicy and explicit
