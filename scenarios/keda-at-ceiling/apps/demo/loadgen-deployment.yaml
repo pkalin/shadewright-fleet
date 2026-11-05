@@ -1,7 +1,7 @@
 # Scenario keda-at-ceiling: steady HTTP load on the worker, so the Prometheus trigger asks for more replicas than
 # the scenario's maxReplicaCount allows. About 13 requests per second in total (one curl, then sleep 0.07 s), which
 # the trigger (threshold 5 per replica) turns into 3 replicas: above a ceiling of 2, within the ceiling of 3 on main.
-# Same hardening as the worker (restricted Pod Security profile). The image is the worker's, which ships curl.
+# Same hardening as the worker (restricted Pod Security profile). The image is the worker's, expected to ship curl (not checked).
 # demo's NetworkPolicies already allow the traffic (allow-http-in-namespace, allow-dns).
 apiVersion: apps/v1
 kind: Deployment
@@ -37,7 +37,7 @@ spec:
           command:
             - /bin/sh
             - -c
-            - while true; do curl -s -o /dev/null --max-time 2 http://worker.demo.svc.cluster.local:9898/; sleep 0.07; done
+            - while true; do curl -s -o /dev/null --max-time 2 http://worker.demo.svc.cluster.local/; sleep 0.07; done
           resources:
             requests:
               cpu: 10m
