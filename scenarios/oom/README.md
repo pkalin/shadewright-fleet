@@ -31,9 +31,26 @@ The memory limit is the field the action patches, so a reset changes it back to 
 - The healthy baseline also produced one-off startup Incidents for `worker`
   ([#267](https://github.com/pkalin/shadewright/issues/267)).
 
-## Expected diagnosis (planned)
+## Observed analysis (v0.3.0-rc.1 lab run, 2026-11-06)
 
-Not observed: no analysis has run on this scenario, because the diagnosis step is not built. It should name
+The first run with a real model (evaluation run, not production; operator `docs/lab-oom-acceptance.md`):
+`gpt-5.4-mini-2026-03-17` through the `triage` deployment, settings and policy from
+`infrastructure/shadewright-lab-config`.
+
+- The collector created an `OOMKilled` Incident for Deployment `demo/web` (symptom "Container web terminated with exit
+  code 137") about 40 s after the scenario commit; the analyzer analyzed it 2 min 21 s later.
+- Outcome: `Escalated`, reason `MissingData`, no request. One model call, no tool calls, 2,610 tokens.
+- What the model said was missing is not known: the result's `missingData` is neither logged nor stored yet
+  ([shadewright#422](https://github.com/pkalin/shadewright/issues/422), [#77](https://github.com/pkalin/shadewright/issues/77)).
+- The context had the termination and the symptom only: the restart count and the memory working set below are
+  not wired into the analyzer yet, so a hand-off rather than a guessed limit is the safe answer.
+- Before the scenario, the six one-off startup Incidents of the healthy baseline were analyzed as soon as the
+  settings arrived, all `MissingData`, 13,209 tokens in total
+  ([shadewright#423](https://github.com/pkalin/shadewright/issues/423)).
+
+## Expected diagnosis
+
+It should name
 `OOMKilled` from the container status (`lastState.terminated.reason`), not from an event reason, the restart count
 (from the pod status, through a read-only tool that is not built), and the memory working set from Prometheus
 (`container_memory_working_set_bytes`, scraped from the kubelet's cAdvisor), which sits at the 48Mi limit. The
@@ -43,8 +60,8 @@ Prometheus read goes through the `MetricsSource` interface, which is not wired i
 
 A pull request with `SetContainerMemoryLimit` on container `web`, raising the limit within the policy's bounds. It
 changes only `resources.limits.memory` in `apps/demo/web-deployment.yaml`. This is the positive stage 2 case.
-Observed so far: the pull request step with a hand-written request (above). Planned: the analyzer producing that
-request from the Incident and a diagnosis. The bounds in `expected.yaml` (`64Mi` to `128Mi`) are what a sensible
+Observed so far: the pull request step with a hand-written request (above), and a model analysis that handed off
+for missing data (above). Planned: the analyzer producing that request from the Incident and a diagnosis. The bounds in `expected.yaml` (`64Mi` to `128Mi`) are what a sensible
 policy for this lab allows: the container needs about 54Mi, so anything below `64Mi` would be killed again or leave
 no headroom, and the baseline value of `64Mi` is a 33% increase, within the default `maxIncreasePercent` of 50. The
 policy that applies them lives in the operator repository, not here.
