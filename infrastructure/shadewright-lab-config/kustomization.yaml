@@ -7,7 +7,7 @@
 #   FLEET_REPOSITORY_URL         var.fleet_repository_url, lower case, without .git
 #   FLEET_BRANCH                 var.fleet_branch: cluster/lab, the branch Flux tracks (ADR-0022)
 #   GITHUB_APP_CLIENT_ID         var.github_app_client_id
-#   GITHUB_APP_INSTALLATION_ID   var.github_app_installation_id (a number, so unquoted)
+#   GITHUB_APP_INSTALLATION_ID   var.github_app_installation_id, forwarded as "id<number>" (clusters/lab/shadewright-config.yaml)
 #   GITHUB_APP_KEY_ID            foundation output key_vault: <uri>/keys/<github_app_key>
 #   MODEL_ENDPOINT               foundation output model_endpoint
 #

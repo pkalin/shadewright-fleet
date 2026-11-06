@@ -1,7 +1,9 @@
 # The agent's lab configuration (infrastructure/shadewright-lab-config): RemediationSettings and the demo-memory policy.
 # After shadewright, whose HelmRelease installs the CRDs (wait: true there means the release is Ready). Nothing depends
 # on it. The values are the lab's, forwarded from the parent (shadewright-azure lab/flux.tf) because substitutions
-# apply only to the Kustomization that declares them.
+# apply only to the Kustomization that declares them. The installation ID is a number: forwarded as is, it would land
+# in this map unquoted (kustomize drops the quotes before Flux substitutes) and Flux refuses a map value that is not a
+# string. It is forwarded with the prefix "id" and the prefix is removed where it is used (${VAR/id/}, a replacement Flux documents).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -24,6 +26,6 @@ spec:
       FLEET_REPOSITORY_URL: "${FLEET_REPOSITORY_URL}"
       FLEET_BRANCH: "${FLEET_BRANCH}"
       GITHUB_APP_CLIENT_ID: "${GITHUB_APP_CLIENT_ID}"
-      GITHUB_APP_INSTALLATION_ID: "${GITHUB_APP_INSTALLATION_ID}"
+      GITHUB_APP_INSTALLATION_ID: "id${GITHUB_APP_INSTALLATION_ID}"
       GITHUB_APP_KEY_ID: "${GITHUB_APP_KEY_ID}"
       MODEL_ENDPOINT: "${MODEL_ENDPOINT}"

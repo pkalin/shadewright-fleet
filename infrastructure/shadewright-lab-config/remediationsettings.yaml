@@ -17,7 +17,8 @@ spec:
       provider: GitHub
       github:
         appClientID: "${GITHUB_APP_CLIENT_ID}"
-        installationID: ${GITHUB_APP_INSTALLATION_ID}
+        # The number with the prefix "id" that clusters/lab/shadewright-config.yaml forwards it with removed.
+        installationID: ${GITHUB_APP_INSTALLATION_ID/id/}
         signer:
           azureKeyVault:
             keyID: "${GITHUB_APP_KEY_ID}"

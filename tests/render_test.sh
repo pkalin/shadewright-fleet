@@ -44,4 +44,11 @@ cp -R "$cfg" "$T/range" && sed -i.bak 's/max: 128Mi/max: lots/' "$T/range/remedi
 run render_dir "$T/range"
 expect_fail "a policy bound that is not a quantity fails" "does not pass the schema check"
 
+# The parent Kustomization "lab" substitutes the forwarded values into clusters/lab/shadewright-config.yaml after
+# kustomize has dropped their quotes, and Flux refuses a substitute value that YAML reads as anything but a string.
+# Emulate that step with a numeric installation ID: every forwarded value must stay a string.
+fwd=$(sed -E 's/^( +[A-Z_]+: )"(.*)"$/\1\2/; s/\$\{GITHUB_APP_INSTALLATION_ID\}/87654321/' "$SRC_ROOT/clusters/lab/shadewright-config.yaml")
+check "a numeric installation ID is forwarded as a string" bash -c "! grep -qE '^ +GITHUB_APP_INSTALLATION_ID: [0-9]+\$' <<<\"\$1\"" _ "$fwd"
+check "the forwarded installation ID is the number with the prefix id" grep -q 'GITHUB_APP_INSTALLATION_ID: id87654321$' <<<"$fwd"
+
 finish
