@@ -1,0 +1,29 @@
+# The agent's lab configuration (infrastructure/shadewright-lab-config): RemediationSettings and the demo-memory policy.
+# After shadewright, whose HelmRelease installs the CRDs (wait: true there means the release is Ready). Nothing depends
+# on it. The values are the lab's, forwarded from the parent (shadewright-azure lab/flux.tf) because substitutions
+# apply only to the Kustomization that declares them.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: shadewright-config
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: shadewright
+  interval: 10m
+  retryInterval: 1m
+  timeout: 2m
+  sourceRef:
+    kind: GitRepository
+    name: fleet
+  path: ./infrastructure/shadewright-lab-config
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      FLEET_REPOSITORY_URL: "${FLEET_REPOSITORY_URL}"
+      FLEET_BRANCH: "${FLEET_BRANCH}"
+      GITHUB_APP_CLIENT_ID: "${GITHUB_APP_CLIENT_ID}"
+      GITHUB_APP_INSTALLATION_ID: "${GITHUB_APP_INSTALLATION_ID}"
+      GITHUB_APP_KEY_ID: "${GITHUB_APP_KEY_ID}"
+      MODEL_ENDPOINT: "${MODEL_ENDPOINT}"

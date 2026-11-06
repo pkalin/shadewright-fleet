@@ -1,0 +1,19 @@
+# The agent's lab configuration: the RemediationSettings and the demo-memory RemediationPolicy, applied by the Flux
+# Kustomization "shadewright-config" (clusters/lab/shadewright-config.yaml) after the chart has installed the CRDs.
+# Every ${VAR} is a Flux postBuild substitution that shadewright-azure (lab/flux.tf) fills from its Terraform outputs and
+# its git-ignored lab variables; nothing environment-specific is committed.
+#
+#   Variable                     Source (shadewright-azure; samples for the schema check in render-sample.env)
+#   FLEET_REPOSITORY_URL         var.fleet_repository_url, lower case, without .git
+#   FLEET_BRANCH                 var.fleet_branch: cluster/lab, the branch Flux tracks (ADR-0022)
+#   GITHUB_APP_CLIENT_ID         var.github_app_client_id
+#   GITHUB_APP_INSTALLATION_ID   var.github_app_installation_id (a number, so unquoted)
+#   GITHUB_APP_KEY_ID            foundation output key_vault: <uri>/keys/<github_app_key>
+#   MODEL_ENDPOINT               foundation output model_endpoint
+#
+# The agent's own pull requests can never change these files: the policy allows apps/demo/*-deployment.yaml only.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - remediationsettings.yaml
+  - remediationpolicy-demo-memory.yaml
