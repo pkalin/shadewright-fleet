@@ -4,6 +4,7 @@
 #   make tools                                # pinned kustomize, kubeconform, kind, kubectl, shellcheck into bin/
 #   make lint test render                     # shellcheck, offline harness tests, the render check
 #   make kind-up kind-wait                    # a Kind cluster whose Flux tracks cluster/kind, then its baseline
+#   make kind-dry-run-config                  # the pinned chart's CRDs, then a server-side dry run of the lab config
 #   make scenario-list
 #   make scenario-<name> CLUSTER=kind|lab     # switch a scenario on: one commit on cluster/<CLUSTER>
 #   make scenario-reset CLUSTER=kind|lab      # back to main's tree: one commit on cluster/<CLUSTER>
@@ -17,7 +18,7 @@ export KIND_CLUSTER_NAME FLEET_URL FLEET_BRANCH FLEET_COMMIT FLEET_REF_NAME EXPE
 
 SCRIPTS := $(wildcard scripts/*.sh) $(wildcard tests/*.sh)
 
-.PHONY: help tools lint test render check-scenarios kind-up kind-wait kind-down scenario-list scenario-reset
+.PHONY: help tools lint test render check-scenarios kind-up kind-wait kind-dry-run-config kind-down scenario-list scenario-reset
 
 help:
 	@sed -n '1,/^$$/p' Makefile | sed 's/^# \{0,1\}//'
@@ -42,6 +43,9 @@ kind-up:
 
 kind-wait:
 	scripts/kind.sh wait
+
+kind-dry-run-config:
+	scripts/kind.sh dry-run-config
 
 kind-down:
 	scripts/kind.sh down

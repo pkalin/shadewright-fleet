@@ -49,8 +49,26 @@ require_render_tools() {
   require_version kubeconform "$KUBECONFORM_VERSION" "$out"
 }
 
-# render_dir <dir> [label] [skipped kinds]: kustomize build of one directory (with the samples of
-# <dir>/render-sample.env substituted) and kubeconform -strict on the output,
+# render_substituted <dir> [label]: kustomize build of one directory with the samples of <dir>/render-sample.env
+# substituted, printed on stdout. A directory whose manifests hold Flux substitutions that the schemas constrain
+# (patterns, integers) keeps sample values in render-sample.env (NAME=value lines, not a kustomize resource): the
+# check sees what Flux renders. NAME is the whole expression inside ${...}, so NAME/id/ stands for ${NAME/id/}.
+render_substituted() {
+  local dir="$1" out name value
+  if ! out="$("$KUSTOMIZE" build "$dir")"; then
+    echo "::error::kustomize build ${2:-$dir} failed" >&2
+    return 1
+  fi
+  if [ -f "$dir/render-sample.env" ]; then
+    while IFS='=' read -r name value; do
+      case $name in '' | '#'*) continue ;; esac
+      out=${out//"\${${name}}"/$value}
+    done <"$dir/render-sample.env"
+  fi
+  printf '%s\n' "$out"
+}
+
+# render_dir <dir> [label] [skipped kinds]: render_substituted and kubeconform -strict on the output,
 # against the Kubernetes schemas of the lab's version and the pinned CRD catalog. The same check as scripts/render.sh.
 # The third argument is a comma-separated list of kinds kubeconform skips; leave it empty to validate everything.
 render_dir() {
@@ -58,20 +76,7 @@ render_dir() {
   [ -z "${3:-}" ] || skip=(-skip "$3")
   cache="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/kubeconform-cache"
   mkdir -p "$cache"
-  if ! out="$("$KUSTOMIZE" build "$dir")"; then
-    echo "::error::kustomize build ${2:-$dir} failed"
-    return 1
-  fi
-  # A directory whose manifests hold Flux substitutions that the schemas constrain (patterns, integers) keeps
-  # sample values in render-sample.env (NAME=value lines, not a kustomize resource): the check sees what Flux renders.
-  # NAME is the whole expression inside ${...}, so NAME/id/ stands for ${NAME/id/}.
-  if [ -f "$dir/render-sample.env" ]; then
-    local name value
-    while IFS='=' read -r name value; do
-      case $name in '' | '#'*) continue ;; esac
-      out=${out//"\${${name}}"/$value}
-    done <"$dir/render-sample.env"
-  fi
+  out="$(render_substituted "$dir" "${2:-}")" || return 1
   if ! printf '%s\n' "$out" | "$KUBECONFORM" -strict -summary -kubernetes-version "$KUBERNETES_VERSION" \
       ${skip[@]+"${skip[@]}"} -cache "$cache" -schema-location default -schema-location "$CRD_SCHEMAS" \
       -schema-location "$LOCAL_SCHEMAS"; then
