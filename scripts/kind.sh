@@ -232,12 +232,11 @@ cmd_wait() {
 # Helm templates whose only directives are lines of their own (the crd.enabled switch, the keep annotation, the
 # labels helper); dropping those lines leaves plain YAML, and any other use of "{{" fails.
 pinned_chart_crds() {
-  local dir="$1" file url repo digest token manifest layer work f
+  local dir="$1" file repo digest token manifest layer work f
   file="${REPO_ROOT}/infrastructure/shadewright/ocirepository.yaml"
-  url="$(sed -n 's|^ *url: *oci://ghcr\.io/\([a-z0-9/_.-]*\) *$|\1|p' "$file")"
+  repo="$(sed -n 's|^ *url: *oci://ghcr\.io/\([a-z0-9/_.-]*\) *$|\1|p' "$file")"
   digest="$(sed -n 's|^ *digest: *\(sha256:[0-9a-f]\{64\}\) *$|\1|p' "$file")"
-  [ -n "$url" ] && [ -n "$digest" ] || die "cannot read the chart url and digest from ${file}"
-  repo="$url"
+  [ -n "$repo" ] && [ -n "$digest" ] || die "cannot read the chart url and digest from ${file}"
   need curl
   need tar
   need python3
