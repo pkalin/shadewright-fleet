@@ -7,6 +7,16 @@
 #   Variable             Source (shadewright-azure)                                              Used for
 #   ANALYZER_CLIENT_ID   foundation output analyzer_identity, field client_id                    analyzer.identity.azure.clientId
 #   EXECUTOR_CLIENT_ID   foundation output executor_identity, field client_id                    executor.identity.azure.clientId
+#   MODEL_ENDPOINT_SUFFIX  "." plus the host of foundation output model_endpoint (not yet in      analyzer.analysis.endpointSuffixes
+#                        shadewright-azure lab/flux.tf, which has only the full MODEL_ENDPOINT URL)
+#
+# Analysis (evaluation run only, not production; operator docs/lab-oom-acceptance.md, "Evaluation run"): triageModel
+# is the model of the foundation deployment "triage" as its replies name it (<name>-<version>, from
+# foundation/terraform.tfvars.example). endpointSuffixes lists the lab's own AI Services account host only, so no other
+# resource receives the context or a token. escalationModel stays empty: an escalation signal hands the Incident off.
+# actionPolicies names the RemediationPolicy applied by hand (config/samples/lab). The daily cap lives in the
+# RemediationSettings (analysis.maxAnalysesPerDay, 10 for the lab), applied by hand with the endpoint and deployment;
+# the chart has no value for it and the settings hold per-installation IDs, so they are not committed here.
 #
 # The federated credentials of both identities name the namespace shadewright-system and the ServiceAccounts
 # shadewright-analyzer and shadewright-executor (lab/federation.tf: operator_namespace, analyzer_service_account and
@@ -29,6 +39,12 @@ patches:
       spec:
         values:
           analyzer:
+            analysis:
+              triageModel: gpt-5.4-mini-2026-03-17
+              endpointSuffixes:
+                - "${MODEL_ENDPOINT_SUFFIX}"
+              actionPolicies:
+                SetContainerMemoryLimit: demo-memory
             identity:
               azure:
                 clientId: "${ANALYZER_CLIENT_ID}"

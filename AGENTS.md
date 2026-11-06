@@ -40,18 +40,22 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
     identity client IDs into the HelmRelease values as `${VAR}` substitutions, each tied to a Terraform output in its
     header) is applied only by `clusters/lab/shadewright.yaml`, after `infrastructure`; nothing depends on it, so a
     broken agent cannot block `apps`. The Kind cluster does not install the agent through Flux; see README, "Kind".
+    `infrastructure/shadewright-lab/` also turns the model analysis on for an evaluation run (not production): triage
+    model, `endpointSuffixes` limited to the lab's own AI Services host (`${MODEL_ENDPOINT_SUFFIX}`) and
+    `actionPolicies`. The daily cap (`maxAnalysesPerDay`) is in the hand-applied `RemediationSettings`, not here.
     Switching a running lab from the old vendored install is not supported (Helm refuses to adopt the existing CRDs
     and RBAC): the lab is destroyed between sessions, so a fresh lab installs the chart cleanly.
   - Each add-on has its own namespace (restricted Pod Security labels, default-deny NetworkPolicy and explicit
     allows) and a `HelmRepository` and `HelmRelease` in `flux-system` (multi-tenancy) with `targetNamespace`.
     Charts are pinned to exact versions and images to tag and digest in the values; bump them together.
 - `apps/`: small workloads used as remediation targets, under `apps/demo/`: `web` (Deployment and Service) and
-  `worker` (Deployment, Service and a KEDA `ScaledObject` with a Prometheus trigger), both podinfo. One object per
+  `worker` (Deployment, Service and a KEDA `ScaledObject` with a Prometheus trigger) and `cache` (a stateless
+  two-replica StatefulSet with a headless Service, no volume claim), all podinfo. One object per
   file and kustomizations with `resources` only, because the operator's source mapping (ADR-0012) supports plain
   manifests only; values the patchers change (memory limits, `maxReplicaCount`) stay literal. The worker has no
   `spec.replicas`: the HPA that KEDA creates owns it.
 - `scenarios/`: one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod,
-  broken KEDA trigger, invalid manifest), each with a `README.md` (what breaks, the expected diagnosis and the
+  broken KEDA trigger, invalid manifest, StatefulSet OOM), each with a `README.md` (what breaks, the expected diagnosis and the
   expected PR or refusal), an `expected.yaml` (schema in `scenarios/schema/`) and the broken versions of files
   under `apps/demo/`, at `scenarios/<name>/apps/demo/<file>`. Layout and schema: `scenarios/README.md`.
 - `scripts/`: `render.sh` (the render check), `scenario.sh` (the scenario harness), `kind.sh` (the Kind cluster),

@@ -3,6 +3,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - cache-service.yaml
+  - cache-serviceaccount.yaml
+  - cache-statefulset.yaml
   - networkpolicy-allow-dns.yaml
   - networkpolicy-allow-http-in-namespace.yaml
   - networkpolicy-allow-prometheus-scrape.yaml
