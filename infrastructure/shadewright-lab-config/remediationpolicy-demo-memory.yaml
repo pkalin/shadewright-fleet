@@ -1,0 +1,25 @@
+# The lab's demo-memory policy (operator config/samples/lab at v0.3.0-rc.1), named by infrastructure/shadewright-lab's
+# actionPolicies. Allows raising the memory limit of containers in the demo namespace to between 64Mi and 128Mi, in
+# steps of at most 50%, in the demo Deployments only; decreases are refused and a person approves every pull request.
+# The bounds are the OOM scenario's (scenarios/oom/expected.yaml). To see an open request go Superseded (operator
+# docs/lab-oom-acceptance.md, step 9), change the bounds in a commit on cluster/lab.
+apiVersion: remediation.shadewright.io/v1alpha1
+kind: RemediationPolicy
+metadata:
+  name: demo-memory
+spec:
+  requestNamespaces: [shadewright-system]
+  targets:
+    namespaces: [demo]
+  actions:
+    - type: SetContainerMemoryLimit
+      setContainerMemoryLimit:
+        min: 64Mi
+        max: 128Mi
+        maxIncreasePercent: 50
+        maxDecreasePercent: 0
+  gitOps:
+    repositoryRef: fleet
+    allowedPaths:
+      - apps/demo/*-deployment.yaml
+  approval: Required

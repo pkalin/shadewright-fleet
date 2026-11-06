@@ -1,0 +1,541 @@
+{
+  "additionalProperties": false,
+  "description": "RemediationSettings is the single cluster-wide configuration object, named default.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec holds the settings.",
+      "properties": {
+        "analysis": {
+          "additionalProperties": false,
+          "default": {},
+          "description": "analysis bounds every model-backed analysis and names the model deployments it may call. Left out, its\nlimits take their defaults and no model is configured. maxAnalysesPerDay is read by the analysis\ntrigger; the analysis loop, which the analyzer starts only with its --triage-model flag, reads and\nenforces the rest, maxTokensPerDay within one analysis only until the spend counter of #208. The\nendpoints decide where the analyzer sends its Entra ID token and the redacted context, so write access\nto this object is security-relevant (threat model).",
+          "properties": {
+            "maxAnalysesPerDay": {
+              "default": 100,
+              "description": "maxAnalysesPerDay limits model-backed analyses per UTC day, across all Incidents; 0 disables the\nmodel. 0 to 10000. Defaulted to 100 also when spec.analysis is left out. Read today by the analysis\ntrigger: 0 marks every Incident not due (AnalysisDisabled). The analysis loop reserves one unit per\nattempt before its first model call (ADR-0025), so the count is enforced while it runs. Replaces the\ndeprecated spec.maxAnalysesPerDay; while that is still set, the lower of the two applies.",
+              "format": "int32",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxConcurrentAnalyses": {
+              "default": 1,
+              "description": "maxConcurrentAnalyses is the most analyses that call a model at once. 1 to 8.",
+              "format": "int32",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxContextBytes": {
+              "default": 32768,
+              "description": "maxContextBytes is the most bytes of redacted cluster context (events, pod status, log excerpts,\nmetrics) the context builder puts into one analysis, before the fixed system part of the prompt.\n4096 to 262144; the default of 32768 is roughly 8,000 tokens. A context cut at this bound is marked\ntruncated, which is an escalation trigger (ADR-0023).",
+              "format": "int32",
+              "maximum": 262144,
+              "minimum": 4096,
+              "type": "integer"
+            },
+            "maxOutputTokens": {
+              "default": 2048,
+              "description": "maxOutputTokens is the most output tokens one model call may produce, sent as the request's\nMaxOutputTokens, so the provider stops there. An analysis makes at most 3 + maxToolSteps model calls:\nthe triage call, one retry after invalid output, and maxToolSteps + 1 escalated turns (an invalid\nescalated result gets no retry; it is handed off). That bounds its output. 256 to 16384.",
+              "format": "int32",
+              "maximum": 16384,
+              "minimum": 256,
+              "type": "integer"
+            },
+            "maxToolSteps": {
+              "default": 4,
+              "description": "maxToolSteps is the most read tool calls one escalated analysis may make. The triage call has no tools\n(ADR-0023), so this only bounds escalation. 0 to 16; 0 means escalation gets no tools.",
+              "format": "int32",
+              "maximum": 16,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "models": {
+              "additionalProperties": false,
+              "description": "models names the model deployments the analyzer may call. Left out, no model is configured, so no\nmodel is called and every incident no runbook matches is handed off to a person.",
+              "properties": {
+                "escalation": {
+                  "additionalProperties": false,
+                  "description": "escalation is the stronger model, called with read tools only on the deterministic escalation signals\nof ADR-0023. Left out, an escalation trigger hands the incident off to a person.",
+                  "properties": {
+                    "apiVersion": {
+                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview.",
+                      "maxLength": 32,
+                      "minLength": 2,
+                      "pattern": "^(v1|[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(-preview)?)$",
+                      "type": "string"
+                    },
+                    "deployment": {
+                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit.",
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.",
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*/?$",
+                      "type": "string"
+                    },
+                    "maxTokensPerDay": {
+                      "description": "maxTokensPerDay is the daily spend cap of this deployment, in tokens per UTC day: input (cached or not)\nplus output tokens of every call, a failed or timed-out call counted at its upper bound (the input\nestimate plus maxOutputTokens). Required, with no default, so the admin chooses the cap of each\ndeployment. It is a count of tokens, not an amount of money, because tokens are what the provider\nreports and bills, they are whole numbers, and a money cap would need a price list in this object that\ngoes stale. It is per deployment because the triage and escalation models differ in price. The spend\nit allows is at most this count times the deployment's highest price per token (design 12.1) only\nbecause the counter reserves a call's upper bound before calling, under one lock for concurrent\nanalyses (planned, #208). 0 to 1,000,000,000; 0, or a cap that is spent, stops calls to this deployment\nand hands the incident off.",
+                      "format": "int64",
+                      "maximum": 1000000000,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "apiVersion",
+                    "deployment",
+                    "endpoint",
+                    "maxTokensPerDay"
+                  ],
+                  "type": "object"
+                },
+                "triage": {
+                  "additionalProperties": false,
+                  "description": "triage is the small model for the one structured call on the prepared context, without tools. Left out,\nno model is called: an incident no runbook matches is handed off to a person, and no unit of\nspec.analysis.maxAnalysesPerDay is used for it.",
+                  "properties": {
+                    "apiVersion": {
+                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview.",
+                      "maxLength": 32,
+                      "minLength": 2,
+                      "pattern": "^(v1|[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(-preview)?)$",
+                      "type": "string"
+                    },
+                    "deployment": {
+                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit.",
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.",
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*/?$",
+                      "type": "string"
+                    },
+                    "maxTokensPerDay": {
+                      "description": "maxTokensPerDay is the daily spend cap of this deployment, in tokens per UTC day: input (cached or not)\nplus output tokens of every call, a failed or timed-out call counted at its upper bound (the input\nestimate plus maxOutputTokens). Required, with no default, so the admin chooses the cap of each\ndeployment. It is a count of tokens, not an amount of money, because tokens are what the provider\nreports and bills, they are whole numbers, and a money cap would need a price list in this object that\ngoes stale. It is per deployment because the triage and escalation models differ in price. The spend\nit allows is at most this count times the deployment's highest price per token (design 12.1) only\nbecause the counter reserves a call's upper bound before calling, under one lock for concurrent\nanalyses (planned, #208). 0 to 1,000,000,000; 0, or a cap that is spent, stops calls to this deployment\nand hands the incident off.",
+                      "format": "int64",
+                      "maximum": 1000000000,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "apiVersion",
+                    "deployment",
+                    "endpoint",
+                    "maxTokensPerDay"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "object",
+              "x-kubernetes-validations": [
+                {
+                  "message": "an escalation model needs a triage model",
+                  "rule": "!has(self.escalation) || has(self.triage)"
+                },
+                {
+                  "message": "triage and escalation must not name the same endpoint and deployment",
+                  "rule": "!has(self.triage) || !has(self.escalation) || (self.triage.endpoint.endsWith('/') ? self.triage.endpoint.substring(0, self.triage.endpoint.size() - 1) : self.triage.endpoint) != (self.escalation.endpoint.endsWith('/') ? self.escalation.endpoint.substring(0, self.escalation.endpoint.size() - 1) : self.escalation.endpoint) || self.triage.deployment.lowerAscii() != self.escalation.deployment.lowerAscii()"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "maxAnalysesPerDay": {
+          "description": "maxAnalysesPerDay is deprecated: it moved to spec.analysis.maxAnalysesPerDay. It has no default, and\na rule on the field refuses any write that sets or changes it. An object stored by v0.1.0 that holds\nit can still be updated as long as the value is left as it is (CRD validation ratcheting), and removing\nit is always allowed. While it is set, the analysis trigger goes by the lower of it and\nspec.analysis.maxAnalysesPerDay, so an old 0 keeps analysis off. Move the value and remove this field.",
+          "format": "int32",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer",
+          "x-kubernetes-validations": [
+            {
+              "message": "spec.maxAnalysesPerDay moved to spec.analysis.maxAnalysesPerDay: set it there and remove this field",
+              "rule": "false"
+            }
+          ]
+        },
+        "maxConcurrentRemediations": {
+          "default": 1,
+          "description": "maxConcurrentRemediations limits the requests that are active at once in the operator namespace: from\nPolicyChecked up to the merge, and while a deleted one still closes its pull request. A further request\nthe policy allows stays Pending, with the condition Queued, until fewer are active; a refusal at the first\ncheck is never held back, but a request already Queued is decided again only once the limits let it\nthrough. Read from the API server right before each allowed decision.",
+          "format": "int32",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "modules": {
+          "additionalProperties": false,
+          "description": "modules enables platform and integration modules. Left out, only the generic platform is on and no\nintegration is: nothing is enabled because it was detected.",
+          "properties": {
+            "integrations": {
+              "description": "integrations are the integration modules enabled. Each is active only while the analyzer detects its\nadd-on. Empty means none. The cap of 32 is also the most integration modules one binary may compile in\n(internal/modules refuses more), so every one of them can be enabled.",
+              "items": {
+                "description": "ModuleName names a cluster platform or integration module (design 2.4 and 2.5): a DNS label that starts with\na letter, at most 63 characters, the rule internal/modules checks when it builds its registry (a test keeps\nthe two equal). It is a pattern, not a list of known names, so a module compiled into a later release, or\nshipped as a pack (ADR-0019), needs no schema change. A name that no compiled-in module has is accepted and\ncontributes nothing.",
+                "maxLength": 63,
+                "minLength": 1,
+                "pattern": "^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$",
+                "type": "string"
+              },
+              "maxItems": 32,
+              "type": "array",
+              "x-kubernetes-list-type": "set"
+            },
+            "platforms": {
+              "description": "platforms are the platform modules enabled besides generic, which is always on and is not listed.\nMore than one may be listed, so one settings file can serve clusters on different platforms: only the\none the analyzer detects is active. Empty means generic only. The cap of 8 is also the most platform\nmodules besides generic one binary may compile in (internal/modules refuses more), so every one of them\ncan be enabled.",
+              "items": {
+                "description": "ModuleName names a cluster platform or integration module (design 2.4 and 2.5): a DNS label that starts with\na letter, at most 63 characters, the rule internal/modules checks when it builds its registry (a test keeps\nthe two equal). It is a pattern, not a list of known names, so a module compiled into a later release, or\nshipped as a pack (ADR-0019), needs no schema change. A name that no compiled-in module has is accepted and\ncontributes nothing.",
+                "maxLength": 63,
+                "minLength": 1,
+                "pattern": "^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$",
+                "type": "string"
+              },
+              "maxItems": 8,
+              "type": "array",
+              "x-kubernetes-list-type": "set",
+              "x-kubernetes-validations": [
+                {
+                  "message": "the generic platform is always on and is not listed",
+                  "rule": "!('generic' in self)"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "paused": {
+          "default": false,
+          "description": "paused stops every write: pull requests, auto-merge and issues. Analysis continues. Checked right\nbefore each write. It revokes no published pull request and reverts no merge; see\nhttps://shadewright.io/emergency/.",
+          "type": "boolean"
+        },
+        "repositories": {
+          "description": "repositories Shadewright may open pull requests in. URLs are unique, so a Flux source matches at most one\nentry.",
+          "items": {
+            "additionalProperties": false,
+            "description": "GitRepository is a repository Shadewright may open pull requests in. Requests and policies refer to it by\nname, so the model never chooses a URL or credentials.",
+            "properties": {
+              "github": {
+                "additionalProperties": false,
+                "description": "github holds GitHub App settings.",
+                "properties": {
+                  "appClientID": {
+                    "description": "appClientID is the GitHub App's client ID: 1 to 64 letters, digits, '.', '_' or '-'.",
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9._-]+$",
+                    "type": "string"
+                  },
+                  "installationID": {
+                    "description": "installationID is the App's installation that covers this repository.",
+                    "format": "int64",
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "signer": {
+                    "additionalProperties": false,
+                    "description": "signer says where the App's private key is.",
+                    "properties": {
+                      "azureKeyVault": {
+                        "additionalProperties": false,
+                        "description": "azureKeyVault signs with a non-exportable Key Vault key through workload identity.",
+                        "properties": {
+                          "keyID": {
+                            "description": "keyID is the key identifier, with or without a version, for example\nhttps://<vault>.vault.azure.net/keys/github-app. It follows the Key Vault naming rules, as the signer\ndoes: a vault name of 3 to 24 lower-case letters, digits and hyphens that starts with a letter, ends with\na letter or digit and has no consecutive hyphens; a key name of 1 to 127 letters, digits and hyphens; an\noptional version of 32 lower-case hexadecimal digits.",
+                            "maxLength": 2048,
+                            "pattern": "^https://[a-z][a-z0-9-]{1,22}[a-z0-9]\\.vault\\.azure\\.net/keys/[A-Za-z0-9-]{1,127}(/[0-9a-f]{32})?$",
+                            "type": "string",
+                            "x-kubernetes-validations": [
+                              {
+                                "message": "the vault name must not contain consecutive hyphens",
+                                "rule": "!self.matches('^https://[a-z0-9-]*--')"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "keyID"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "type": "object",
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "a signer must be configured",
+                        "rule": "has(self.azureKeyVault)"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "appClientID",
+                  "installationID",
+                  "signer"
+                ],
+                "type": "object"
+              },
+              "name": {
+                "description": "name is how policies and requests refer to the repository.",
+                "maxLength": 63,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "type": "string"
+              },
+              "provider": {
+                "description": "provider selects the Git hosting adapter.",
+                "enum": [
+                  "GitHub"
+                ],
+                "type": "string"
+              },
+              "targetBranch": {
+                "default": "main",
+                "description": "targetBranch is the only branch pull requests may target. The branch Flux tracks must equal it. For\nGitHub it starts with a letter or digit, has at most 200 characters and does not end with '.'.",
+                "maxLength": 255,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$",
+                "type": "string",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "must be a plain branch name, not HEAD, refs/..., shadewright/... or one containing '..' or '.lock'",
+                    "rule": "!self.contains('..') && !self.endsWith('.lock') && !self.contains('.lock/') && self != 'HEAD' && !self.startsWith('refs/') && !self.startsWith('shadewright/')"
+                  }
+                ]
+              },
+              "url": {
+                "description": "url is the HTTPS clone URL, without credentials, query or fragment, and without a path segment that is\n'.' or '..'. It must match the URL of the Flux source that delivers a target, or no change is made. For\nGitHub it is https://github.com/<owner>/<repo> in lower case, without .git: an owner of 1 to 39 letters,\ndigits and hyphens that starts with a letter or digit, and a repository name of 1 to 100 letters, digits,\n'.', '_' or '-' other than '.' and '..' (it may start with '.', as in .github).",
+                "maxLength": 512,
+                "pattern": "^https://[a-z0-9.-]+(:[0-9]+)?(/(\\.?[A-Za-z0-9_~-][A-Za-z0-9_.~-]*|\\.\\.[A-Za-z0-9_.~-]+))+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "provider",
+              "url"
+            ],
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "github must be set if and only if provider is GitHub",
+                "rule": "self.provider == 'GitHub' ? has(self.github) : !has(self.github)"
+              },
+              {
+                "message": "a GitHub repository URL must be https://github.com/<owner>/<repo> in lower case, without .git",
+                "rule": "self.provider != 'GitHub' || (self.url.matches('^https://github[.]com/[a-z0-9][a-z0-9-]{0,38}/[a-z0-9_.-]{1,100}$') && !self.url.endsWith('.git') && !self.url.endsWith('/.') && !self.url.endsWith('/..'))"
+              },
+              {
+                "fieldPath": ".targetBranch",
+                "message": "a GitHub target branch must start with a letter or digit, have at most 200 characters and not end with '.'",
+                "rule": "self.provider != 'GitHub' || (self.targetBranch.matches('^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$') && !self.targetBranch.endsWith('.'))"
+              }
+            ]
+          },
+          "maxItems": 16,
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-validations": [
+            {
+              "message": "repository URLs must be unique",
+              "rule": "self.all(r, self.exists_one(s, s.url == r.url))"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status is the analyzer's detection report. It does not report whether repositories or signers are usable.",
+      "properties": {
+        "conditions": {
+          "description": "conditions report problems. The analyzer writes UnknownModules: True when spec.modules names a module\nthat it does not have compiled in, which then contributes nothing; DetectionFailed: True when its\nlast run could not list the nodes or read the discovery API, so the report is from the last run that\nsucceeded, or shows only generic active when none has; and NoWatchedNamespaces: True when it was\nstarted with no namespace to watch (the chart's default), so it reads no events or pods and records no\nIncident.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "integrations": {
+          "description": "integrations lists every integration module that is enabled or detected, with whether it is active.\nA detected add-on whose module is not enabled is listed too, so the cluster admin sees what could be\nenabled. Written like platform. At most 64: 32 enabled (the spec cap) and 32 more\ndetected, since a detected add-on needs a compiled-in module and internal/modules refuses more than 32.",
+          "items": {
+            "additionalProperties": false,
+            "description": "IntegrationStatus reports one integration module that is enabled, detected or both. It is a report only:\nthe analyzer never reads it back to decide which integrations are active, it decides again from\nspec.modules and live detection each time.",
+            "properties": {
+              "active": {
+                "description": "active is true when the module contributes hooks: it is enabled in spec.modules.integrations and\ndetected. It reports that decision and never feeds it.",
+                "type": "boolean"
+              },
+              "detected": {
+                "description": "detected is true when the cluster serves one of the group versions the module declares. An enabled\nname that no compiled-in module has is never detected.",
+                "type": "boolean"
+              },
+              "name": {
+                "description": "name is the integration module.",
+                "maxLength": 63,
+                "minLength": 1,
+                "pattern": "^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$",
+                "type": "string"
+              },
+              "version": {
+                "description": "version is the group version that detected the add-on, in discovery form (keda.sh/v1alpha1). Set if\nand only if the add-on is detected.",
+                "maxLength": 253,
+                "minLength": 1,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?v[0-9]+((alpha|beta)[0-9]+)?$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "active",
+              "detected",
+              "name"
+            ],
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "version is set if and only if the integration is detected",
+                "rule": "self.detected == has(self.version)"
+              },
+              {
+                "message": "an integration that is not detected is not active",
+                "rule": "!self.active || self.detected"
+              }
+            ]
+          },
+          "maxItems": 64,
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "observedGeneration": {
+          "description": "observedGeneration is the generation the status describes.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "platform": {
+          "additionalProperties": false,
+          "description": "platform is the platform the analyzer detected and the one it uses. The analyzer writes it at start, when\nspec changes and every 10 minutes (ADR-0024), with the only write it has outside the operator namespace.\nStatus is a report, never an input: no component reads any field of it to decide anything.",
+          "properties": {
+            "active": {
+              "description": "active is the platform whose module contributes hooks: detected when it is enabled in\nspec.modules.platforms, generic otherwise.",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$",
+              "type": "string"
+            },
+            "detected": {
+              "description": "detected is the platform that claims every node with certainty. Left out when none does.",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "active"
+          ],
+          "type": "object",
+          "x-kubernetes-validations": [
+            {
+              "message": "detected is left out, not generic, when no platform claims the cluster",
+              "rule": "!has(self.detected) || self.detected != 'generic'"
+            },
+            {
+              "message": "active is generic or the detected platform",
+              "rule": "self.active == 'generic' || (has(self.detected) && self.active == self.detected)"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object",
+  "x-kubernetes-validations": [
+    {
+      "message": "there is one RemediationSettings and it is named default",
+      "rule": "self.metadata.name == 'default'"
+    }
+  ]
+}
