@@ -41,7 +41,7 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
     header) is applied only by `clusters/lab/shadewright.yaml`, after `infrastructure`; nothing depends on it, so a
     broken agent cannot block `apps`. The Kind cluster does not install the agent through Flux; see README, "Kind".
     `infrastructure/shadewright-lab/` also turns the model analysis on for an evaluation run (not production): triage
-    model, `escalationModel` (the same model, the triage deployment, until the model choice ADR, operator issue #80),
+    model, no `escalationModel` (the CRD refuses escalation on the triage deployment; a second deployment comes with operator issue #80),
     `prometheus.url` with the analyzer-to-Prometheus egress (`networkPolicy.analyzer.prometheus`; the ingress side is
     in `infrastructure/prometheus/networkpolicy-server.yaml`), `endpointSuffixes` limited to the lab's own AI Services host (`${MODEL_ENDPOINT_SUFFIX}`) and
     `actionPolicies`. The daily cap (`maxAnalysesPerDay`) is in the `RemediationSettings`, not here:

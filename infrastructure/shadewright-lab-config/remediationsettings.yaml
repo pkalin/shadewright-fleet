@@ -31,10 +31,5 @@ spec:
         deployment: triage
         apiVersion: "2024-10-21"
         maxTokensPerDay: 200000
-      # The same foundation deployment as triage: the lab has one model, so escalation (the read tools) uses it until
-      # the model choice ADR (operator issue #80). infrastructure/shadewright-lab sets escalationModel to match.
-      escalation:
-        endpoint: "${MODEL_ENDPOINT}"
-        deployment: triage
-        apiVersion: "2024-10-21"
-        maxTokensPerDay: 200000
+      # No escalation model: the CRD refuses triage and escalation on the same endpoint and deployment, and the lab
+      # has one deployment. Escalation (the read tools) needs a second foundation deployment (operator issue #80).
