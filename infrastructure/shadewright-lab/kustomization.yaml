@@ -12,7 +12,13 @@
 # Analysis (evaluation run only, not production; operator docs/lab-oom-acceptance.md, "Evaluation run"): triageModel
 # is the model of the foundation deployment "triage" as its replies name it (<name>-<version>, from
 # foundation/terraform.tfvars.example). endpointSuffixes lists the lab's own AI Services account host only, so no other
-# resource receives the context or a token. escalationModel stays empty: an escalation signal hands the Incident off.
+# resource receives the context or a token. escalationModel is the same model as triageModel: the lab has no second
+# deployment, so escalation uses the triage deployment until the model choice ADR (operator issue #80) decides. Read
+# tools are offered only to the escalation model, and without one an escalation signal hands the Incident off.
+# prometheus.url is the lab Prometheus (infrastructure/prometheus, Service port 80) as the analyzer's metrics source;
+# without it the context has no metrics and an OOM Incident is handed off with MissingData. networkPolicy.analyzer.
+# prometheus opens the analyzer's egress to that server (container port 9090), and the ingress side is the policy
+# in infrastructure/prometheus/networkpolicy-server.yaml.
 # actionPolicies names the RemediationPolicy in infrastructure/shadewright-lab-config. The daily cap lives in the
 # RemediationSettings there (analysis.maxAnalysesPerDay, 10 for the lab), with the endpoint and deployment; the chart
 # has no value for it.
@@ -38,8 +44,11 @@ patches:
       spec:
         values:
           analyzer:
+            prometheus:
+              url: http://prometheus-server.prometheus.svc
             analysis:
               triageModel: gpt-5.4-mini-2026-03-17
+              escalationModel: gpt-5.4-mini-2026-03-17
               endpointSuffixes:
                 - "${MODEL_ENDPOINT_SUFFIX}"
               actionPolicies:
@@ -51,3 +60,12 @@ patches:
             identity:
               azure:
                 clientId: "${EXECUTOR_CLIENT_ID}"
+          networkPolicy:
+            analyzer:
+              prometheus:
+                enabled: true
+                namespace: prometheus
+                podLabels:
+                  app.kubernetes.io/name: prometheus
+                  app.kubernetes.io/component: server
+                port: 9090
