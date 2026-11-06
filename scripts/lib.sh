@@ -64,6 +64,7 @@ render_dir() {
   fi
   # A directory whose manifests hold Flux substitutions that the schemas constrain (patterns, integers) keeps
   # sample values in render-sample.env (NAME=value lines, not a kustomize resource): the check sees what Flux renders.
+  # NAME is the whole expression inside ${...}, so NAME/id/ stands for ${NAME/id/}.
   if [ -f "$dir/render-sample.env" ]; then
     local name value
     while IFS='=' read -r name value; do
