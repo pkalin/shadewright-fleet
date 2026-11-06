@@ -6,6 +6,7 @@
 #   scripts/kind.sh up          # make kind-up: create the cluster (if missing), install Flux, point it at the fleet
 #   scripts/kind.sh wait        # make kind-wait: wait until the healthy baseline is Ready
 #   scripts/kind.sh down        # make kind-down: delete the cluster
+#   scripts/kind.sh dry-run-config   # make kind-dry-run-config: install the pinned chart's CRDs, server-side dry run of the lab config
 #   scripts/kind.sh debug       # print Flux and workload state (CI, on failure)
 #   scripts/kind.sh bootstrap   # print the GitRepository and Kustomization that `up` applies
 #
@@ -225,6 +226,77 @@ cmd_wait() {
   log "the healthy baseline is Ready on ${CTX}"
 }
 
+# pinned_chart_crds <dir>: writes the CRDs of the chart that infrastructure/shadewright/ocirepository.yaml pins into
+# <dir>. The chart is fetched from the registry by that digest (anonymous pull of a public chart), and both the
+# manifest and the chart layer are checked against their digests, so only the pinned bytes are used. The CRDs are
+# Helm templates whose only directives are lines of their own (the crd.enabled switch, the keep annotation, the
+# labels helper); dropping those lines leaves plain YAML, and any other use of "{{" fails.
+pinned_chart_crds() {
+  local dir="$1" file repo digest token manifest layer work f
+  file="${REPO_ROOT}/infrastructure/shadewright/ocirepository.yaml"
+  repo="$(sed -n 's|^ *url: *oci://ghcr\.io/\([a-z0-9/_.-]*\) *$|\1|p' "$file")"
+  digest="$(sed -n 's|^ *digest: *\(sha256:[0-9a-f]\{64\}\) *$|\1|p' "$file")"
+  [ -n "$repo" ] && [ -n "$digest" ] || die "cannot read the chart url and digest from ${file}"
+  need curl
+  need tar
+  need python3
+  work="$(mktemp -d)"
+  token="$(curl -fsSL --proto '=https' --retry 3 "https://ghcr.io/token?scope=repository:${repo}:pull" |
+    python3 -I -c 'import json,sys; print(json.load(sys.stdin)["token"])')" || die "cannot get a pull token for ghcr.io/${repo}"
+  curl -fsSL --proto '=https' --retry 3 -H "Authorization: Bearer ${token}" \
+    -H 'Accept: application/vnd.oci.image.manifest.v1+json' -o "$work/manifest.json" \
+    "https://ghcr.io/v2/${repo}/manifests/${digest}" || die "cannot fetch the chart manifest ${digest}"
+  verify_sha256 "$work/manifest.json" "${digest#sha256:}"
+  layer="$(python3 -I -c '
+import json, sys
+for l in json.load(open(sys.argv[1]))["layers"]:
+    if l["mediaType"] == "application/vnd.cncf.helm.chart.content.v1.tar+gzip":
+        print(l["digest"])
+        break
+' "$work/manifest.json")"
+  [[ "$layer" =~ ^sha256:[0-9a-f]{64}$ ]] || die "the chart ${digest} has no chart layer"
+  curl -fsSL --proto '=https' --retry 3 -H "Authorization: Bearer ${token}" -o "$work/chart.tgz" \
+    "https://ghcr.io/v2/${repo}/blobs/${layer}" || die "cannot fetch the chart layer ${layer}"
+  verify_sha256 "$work/chart.tgz" "${layer#sha256:}"
+  mkdir "$work/chart"
+  tar -xzf "$work/chart.tgz" -C "$work/chart"
+  mkdir -p "$dir"
+  for f in "$work"/chart/*/templates/crd/*.yaml; do
+    [ -f "$f" ] || die "the chart ${digest} has no templates/crd/*.yaml"
+    grep -vE '^[[:space:]]*\{\{-?[^}]*\}\}[[:space:]]*$' "$f" >"$dir/$(basename "$f")" || true
+    if grep -q '{{' "$dir/$(basename "$f")"; then
+      die "$(basename "$f") uses Helm templating beyond whole-line directives; update pinned_chart_crds"
+    fi
+  done
+  rm -rf "$work"
+}
+
+# The Kind cluster has a real API server, which evaluates the CEL rules (x-kubernetes-validations) of the CRDs that
+# kubeconform cannot (fleet#41). Installs the pinned chart's CRDs, then a server-side dry run of the lab's
+# RemediationSettings and policy rendered with their samples; the job fails when the API server refuses them.
+cmd_dry_run_config() {
+  local dir="${REPO_ROOT}/infrastructure/shadewright-lab-config" crds rendered
+  validate_inputs
+  need kubectl
+  need "$KUSTOMIZE"
+  crds="$(mktemp -d)"
+  rendered="$(mktemp)"
+  pinned_chart_crds "$crds"
+  log "installing the CRDs of the pinned chart"
+  k apply --server-side --force-conflicts -f "$crds" >/dev/null
+  k wait --for=condition=Established --timeout=120s \
+    crd/incidents.remediation.shadewright.io crd/remediationrequests.remediation.shadewright.io \
+    crd/remediationpolicies.remediation.shadewright.io crd/remediationsettings.remediation.shadewright.io >/dev/null
+  render_substituted "$dir" infrastructure/shadewright-lab-config >"$rendered"
+  rm -rf "$crds"
+  if ! k apply --dry-run=server -f "$rendered"; then
+    rm -f "$rendered"
+    die "the API server refused infrastructure/shadewright-lab-config (rendered with render-sample.env)"
+  fi
+  rm -f "$rendered"
+  log "the API server accepts infrastructure/shadewright-lab-config"
+}
+
 cmd_down() {
   need kind
   [[ "$NAME" =~ ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ ]] || die "invalid KIND_CLUSTER_NAME '${NAME}'"
@@ -250,6 +322,7 @@ case "${1:-}" in
   up) cmd_up ;;
   wait) cmd_wait ;;
   down) cmd_down ;;
+  dry-run-config) cmd_dry_run_config ;;
   debug) cmd_debug ;;
   bootstrap) cmd_bootstrap ;;
   *) usage ;;

@@ -119,7 +119,10 @@ recent push, code owner review, the repository admin role as the only bypass act
 
 Not required (yet): `Harness tests` (`.github/workflows/harness.yaml`: shellcheck, `tests/`, `make check-scenarios`)
 and `Kind baseline` (`.github/workflows/kind.yaml`: a Kind cluster with Flux on the commit under test, read-only,
-until the healthy baseline is Ready).
+until the healthy baseline is Ready, then `make kind-dry-run-config`: the CRDs of the chart pinned in
+`infrastructure/shadewright/ocirepository.yaml` are installed (fetched by that digest, checksums verified) and
+`infrastructure/shadewright-lab-config` rendered with its `render-sample.env` gets a server-side dry run, which
+evaluates the CRDs' CEL rules that kubeconform cannot).
 
 ## Commits
 
