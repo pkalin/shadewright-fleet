@@ -15,11 +15,13 @@ clusters/lab/           Flux entry point, applied by the Flux configuration from
   kustomization.yaml
   infrastructure.yaml   Flux Kustomization for infrastructure/
   shadewright.yaml      Flux Kustomization for the agent, after infrastructure, independent of apps
+  shadewright-config.yaml  Flux Kustomization for the agent's settings and policy, after shadewright
   apps.yaml             Flux Kustomization for apps/, after infrastructure is ready
 clusters/kind/          the same for a Kind cluster (scripts/kind.sh), without Azure substitutions
 infrastructure/         cluster add-ons and the namespaces apps/ needs
   shadewright/          the agent from the released Helm chart: OCIRepository (digest, cosign) and HelmRelease
   shadewright-lab/      lab values for it (workload identity client IDs), applied by clusters/lab/shadewright.yaml
+  shadewright-lab-config/  the agent's RemediationSettings and demo-memory policy, applied by clusters/lab/shadewright-config.yaml
   namespaces/           the demo Namespace, created before anything binds in it
   keda/                 KEDA (upstream chart, one replica per component)
   prometheus/           minimal Prometheus: server, kube-state-metrics, kubelet and cAdvisor, 24h retention
@@ -27,6 +29,7 @@ apps/                   demo workloads the scenarios break
   demo/                 web (podinfo) and worker (podinfo scaled by a KEDA ScaledObject on a Prometheus query)
 scenarios/              reproducible incidents: the broken files, what breaks and what Shadewright must conclude
 scripts/render.sh       render check: kustomize build and kubeconform on what Flux applies
+schemas/                kubeconform schemas of the Shadewright CRDs (scripts/crd_schemas.py)
 scripts/scenario.sh     scenario harness: make scenario-<name> and scenario-reset CLUSTER=kind|lab
 scripts/kind.sh         Kind cluster with Flux pointed at this repository: make kind-up, kind-wait, kind-down
 scripts/tools.env       every pinned tool version and checksum (make tools installs them into bin/)
