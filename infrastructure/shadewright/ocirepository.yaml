@@ -1,4 +1,4 @@
-# The released Shadewright chart (0.3.0-rc.2, a release candidate for an evaluation run), pinned by digest, never by tag or range, so the chart
+# The released Shadewright chart (0.3.0-rc.4, a release candidate for an evaluation run), pinned by digest, never by tag or range, so the chart
 # cannot change under Flux. source-controller verifies the cosign keyless signature (GitHub OIDC) of that digest and
 # accepts only the chart workflow of the release tag below. The chart pins the executor and analyzer image digests
 # itself. To upgrade: take the chart digest and tag from the release notes, check them with `cosign verify` (see the
@@ -13,7 +13,7 @@ spec:
   interval: 12h
   url: oci://ghcr.io/pkalin/charts/shadewright
   ref:
-    digest: sha256:3a8fc1326b06747a8342c925e67648da11c0ecffed2bc9e0696a0cd215f42630
+    digest: sha256:b398b65da6d2eefb231aa1159ef1e1b82109b06a240bdacd7aac23ebf956101c
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
@@ -21,4 +21,4 @@ spec:
     provider: cosign
     matchOIDCIdentity:
       - issuer: ^https://token\.actions\.githubusercontent\.com$
-        subject: ^https://github\.com/pkalin/shadewright/\.github/workflows/chart\.yml@refs/tags/v0\.3\.0-rc\.2$
+        subject: ^https://github\.com/pkalin/shadewright/\.github/workflows/chart\.yml@refs/tags/v0\.3\.0-rc\.4$
