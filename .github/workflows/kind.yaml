@@ -3,7 +3,8 @@ name: Kind
 # Boots a Kind cluster with Flux on the commit under test and waits for the healthy baseline (ADR-0022, decision 4):
 # infrastructure (the demo namespace, KEDA, Prometheus) and apps (the demo workloads) Ready. Read-only: Flux reads
 # the public repository over HTTPS without credentials, and its GitRepository tracks the pull request's ref, not a
-# cluster/ branch, so the scenario harness refuses to run here. Nothing is pushed and no secret is used.
+# cluster/ branch, so the scenario harness refuses to run here. Nothing is pushed and no secret is used. It also
+# installs the CRDs of the pinned Shadewright chart and server-side dry-runs the lab configuration against them.
 on:
   pull_request:
   push:
@@ -53,6 +54,10 @@ jobs:
         env:
           EXPECT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: make kind-wait
+
+      # The API server evaluates the CEL rules of the pinned chart's CRDs, which the render check cannot (fleet#41).
+      - name: Dry-run the lab configuration against the pinned CRDs
+        run: make kind-dry-run-config
 
       - name: Show the cluster state
         if: failure()
