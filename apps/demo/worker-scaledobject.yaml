@@ -1,5 +1,3 @@
-# Scenario keda-at-ceiling: the same ScaledObject as apps/demo, with maxReplicaCount lowered from 3 to 2. With the load
-# generator (loadgen-deployment.yaml) the metric asks for 3 replicas, so the HPA sits at its ceiling of 2.
 # Scales the worker on the rate of HTTP requests (jobs) it handles, read from Prometheus. The trigger needs no
 # cloud account or credentials. AdjustKedaMaxReplicas patches maxReplicaCount in place, so it stays a literal
 # value in this file (ADR-0012).
@@ -26,7 +24,7 @@ spec:
     name: worker
   pollingInterval: 30
   minReplicaCount: 1
-  maxReplicaCount: 2
+  maxReplicaCount: 3
   triggers:
     - type: prometheus
       metadata:
