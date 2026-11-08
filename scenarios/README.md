@@ -140,7 +140,7 @@ outcome:
 | `incident.status` | yes | `observed` (seen in a run; `source` says which) or `planned` |
 | `incident.source` | yes | the component that emits the event or termination, and the collector path that reads it |
 | `incident.object` | yes | `kind` and `name`, optional `apiVersion` and `namespace` |
-| `diagnosis.status` | yes | `observed` or `planned` (all `planned` today: the diagnosis step is not built) |
+| `diagnosis.status` | yes | `observed` or `planned` (the diagnosis step is built since operator v0.3.0 and scored by the real-model evaluation, https://shadewright.io/evaluation/; `observed` only when all the scored facts were seen in real-model runs) |
 | `diagnosis.evidence` | yes | one or more `{fact, source}`: a fact the diagnosis must name and where it is read from |
 | `outcome.type` | yes | `pull-request` or `refusal` |
 | `outcome.status`, `outcome.note` | `status` yes | `observed` or `planned`; `note` says what was seen, with a link |
@@ -154,8 +154,8 @@ The file holds one document; no other fields are allowed.
 A line in a scenario is **observed** only if someone saw it in a run, and the run is named next to it. Anything else
 is **planned**: what the code or the design says should happen. As of v0.1.0 (2026-11-04) the analyzer's collector turns
 Warning events and abnormal container terminations into Incidents; the diagnosis step, the creation of requests by
-the analyzer and the read-only tools are not built. So the OOM scenario has an observed part (its Incidents, and its
-pull request, opened from a hand-written request), and the Incident reasons of `missing-secret` and `bad-image` were
+the analyzer and the read-only tools were not built then (they are since v0.3.0). The lab runs of 2026-11-06 to
+2026-11-08 (v0.3.0-rc.2 to rc.5) are recorded in the scenarios `oom`, `keda-at-ceiling` and `statefulset-oom`, and the Incident reasons of `missing-secret` and `bad-image` were
 observed on Kind on 2026-11-04. All other incident reasons are what the kubelet, the scheduler, KEDA and Flux are
 expected to emit, checked against what the collector reads, not against a cluster.
 
@@ -181,9 +181,8 @@ What each layer proves today. A cell without a link has no evidence yet.
 | Schema and render | `expected.yaml` matches the schema, and `apps/` renders as the scenario declares (`make check-scenarios`) | the six before `statefulset-oom` | [Harness](https://github.com/pkalin/shadewright-fleet/actions/runs/41797824198) on `main` at 8fe9e16 |
 | Harness | the scenario switch refuses what it must and pushes only fast-forwards to the cluster branch (`tests/`, offline, stubbed cluster) | the six before `statefulset-oom` | the same Harness run |
 | Healthy baseline | `infrastructure` and `apps` become Ready on Kind with no scenario | none (baseline) | [Kind](https://github.com/pkalin/shadewright-fleet/actions/runs/41797824469) on `main` at 8fe9e16; on the lab the baseline still produced one-off startup Incidents for `worker` ([#267](https://github.com/pkalin/shadewright/issues/267)) |
-| Runtime symptom | the symptom appears on a cluster and the collector creates the Incident | `oom`, `missing-secret`, `bad-image` | `oom`: the lab run of 2026-11-04 (`OOMKilled`, `BackOff` and `Unhealthy` Incidents for `demo/web`). `missing-secret` and `bad-image`: a Kind run of 2026-11-04 with the vendored agent applied by hand (`Failed` Incidents for `demo/web`, see each README) |
-| Full acceptance | Incident, request, pull request and policy outcome end to end | `oom`, with a hand-written request | [pkalin/shadewright-fleet#26](https://github.com/pkalin/shadewright-fleet/pull/26), run as in the operator's `docs/lab-oom-acceptance.md`; the analyzer does not create the request yet |
+| Runtime symptom | the symptom appears on a cluster and the collector creates the Incident | `oom`, `keda-at-ceiling`, `statefulset-oom`, `missing-secret`, `bad-image` | `oom`: the lab runs of 2026-11-04 and 2026-11-06 to 2026-11-08; `keda-at-ceiling` and `statefulset-oom`: the lab run of 2026-11-08 (v0.3.0-rc.5). `oom` on 2026-11-04 (`OOMKilled`, `BackOff` and `Unhealthy` Incidents for `demo/web`). `missing-secret` and `bad-image`: a Kind run of 2026-11-04 with the vendored agent applied by hand (`Failed` Incidents for `demo/web`, see each README) |
+| Full acceptance | Incident, request, pull request and policy outcome end to end | `oom` (from the analyzer, merged and fixed), `keda-at-ceiling` (the same), `statefulset-oom` (up to a merged pull request, delivery not checked) | `oom`: [#51](https://github.com/pkalin/shadewright-fleet/pull/51) on 2026-11-08 (v0.3.0-rc.5); `keda-at-ceiling`: [#53](https://github.com/pkalin/shadewright-fleet/pull/53); `statefulset-oom`: [#54](https://github.com/pkalin/shadewright-fleet/pull/54), not merged. History: [#26](https://github.com/pkalin/shadewright-fleet/pull/26), a hand-written request on 2026-11-04 |
 
-The other three scenarios stop at schema, render and harness, and so does `statefulset-oom` (the StatefulSet case,
-[#269](https://github.com/pkalin/shadewright/issues/269)): its run on Kind or the lab is planned. Next: a positive
-KEDA-at-ceiling scenario ([#268](https://github.com/pkalin/shadewright/issues/268)).
+The other scenarios stop at schema, render and harness. `statefulset-oom` (the StatefulSet case,
+[#269](https://github.com/pkalin/shadewright/issues/269)) ran on the lab up to a merged pull request; its delivery is not checked.
