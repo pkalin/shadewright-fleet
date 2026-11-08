@@ -5,7 +5,7 @@ Usage: scripts/crd_schemas.py CRD_FILE... (needs PyYAML; run by hand when the pi
 
 Take the CRDs from the operator tag the chart in infrastructure/shadewright/ocirepository.yaml was built from:
 
-    git -C ../shadewright show v0.3.0-rc.4:config/crd/bases/remediation.shadewright.io_remediationsettings.yaml > /tmp/s.yaml
+    git -C ../shadewright show v0.3.0-rc.5:config/crd/bases/remediation.shadewright.io_remediationsettings.yaml > /tmp/s.yaml
 
 The CRD catalog that render_dir uses (scripts/lib.sh) has no Shadewright schemas, and kubeconform -strict refuses a
 kind without one. Like kubeconform's openapi2jsonschema, every object schema that does not say otherwise gets
