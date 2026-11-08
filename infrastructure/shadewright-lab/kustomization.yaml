@@ -19,7 +19,7 @@
 # without it the context has no metrics and an OOM Incident is handed off with MissingData. networkPolicy.analyzer.
 # prometheus opens the analyzer's egress to that server (container port 9090), and the ingress side is the policy
 # in infrastructure/prometheus/networkpolicy-server.yaml.
-# actionPolicies names the RemediationPolicy in infrastructure/shadewright-lab-config. The daily cap lives in the
+# actionPolicies names the RemediationPolicies in infrastructure/shadewright-lab-config. The daily cap lives in the
 # RemediationSettings there (analysis.maxAnalysesPerDay, 10 for the lab), with the endpoint and deployment; the chart
 # has no value for it.
 #
@@ -52,6 +52,7 @@ patches:
                 - "${MODEL_ENDPOINT_SUFFIX}"
               actionPolicies:
                 SetContainerMemoryLimit: demo-memory
+                AdjustKedaMaxReplicas: demo-keda
             identity:
               azure:
                 clientId: "${ANALYZER_CLIENT_ID}"
