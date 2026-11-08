@@ -26,7 +26,7 @@ spec:
     name: worker
   pollingInterval: 30
   minReplicaCount: 1
-  maxReplicaCount: 2
+  maxReplicaCount: 3
   triggers:
     - type: prometheus
       metadata:
