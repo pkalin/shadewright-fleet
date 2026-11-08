@@ -1,4 +1,11 @@
-# SCENARIO statefulset-oom (scenarios/statefulset-oom): podinfo loads 36 MB into memory (the load; it needs the writable /tmp volume below, the root filesystem is read-only), and the limit is 48Mi, below what the container holds (about 54Mi, measured for the oom scenario).
+# The stateless StatefulSet the statefulset-oom scenario breaks. podinfo again (same image as web), but run as a
+# StatefulSet with a headless Service and no volume claim: nothing here keeps data, so the lab pays for no disk and
+# the restricted profile needs no fsGroup. Remediation PRs may change values in this file in place (for example the
+# memory limit, SetContainerMemoryLimit), so keep every value literal: no patches or generators (ADR-0012).
+# Two replicas on purpose: a rolling update goes from the highest ordinal down and waits for each pod to be Ready,
+# so a broken template leaves cache-1 stuck and cache-0 untouched (scenarios/statefulset-oom/README.md).
+# Image: https://github.com/stefanprodan/podinfo (6.17.0, multi-arch index digest on ghcr.io); the image's
+# user "app" is uid 100, gid 101.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -43,7 +50,6 @@ spec:
             - --port=9898
             - --port-metrics=9797
             - --level=info
-            - --stress-memory=36
           env:
             - name: PODINFO_UI_MESSAGE
               value: shadewright demo cache
@@ -70,7 +76,7 @@ spec:
               memory: 32Mi
             limits:
               cpu: 200m
-              memory: 72Mi
+              memory: 64Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -80,12 +86,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-            - name: tmp
-              mountPath: /tmp
       volumes:
         - name: data
-          emptyDir:
-            sizeLimit: 16Mi
-        - name: tmp
           emptyDir:
             sizeLimit: 16Mi

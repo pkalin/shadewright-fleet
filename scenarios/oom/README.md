@@ -48,8 +48,29 @@ The first run with a real model (evaluation run, not production; operator `docs/
   settings arrived, all `MissingData`, 13,209 tokens in total
   ([shadewright#423](https://github.com/pkalin/shadewright/issues/423)).
 
+## Observed from the analyzer (v0.3.0-rc.2 to rc.5, 2026-11-06 to 2026-11-08)
+
+The analyzer now creates the request itself; the hand-written request above is history. Lab runs, times UTC:
+
+- 2026-11-06 (rc.2): pull request [pkalin/shadewright-fleet#45](https://github.com/pkalin/shadewright-fleet/pull/45),
+  3m34s from the symptom; the executor saw the merge 4m07s late
+  ([pkalin/shadewright#434](https://github.com/pkalin/shadewright/issues/434)).
+- 2026-11-07 (rc.4): two proposals, both `Denied` by policy, correctly. 48Mi to 96Mi was over the 50% step, because
+  the model did not see the policy bounds ([#493](https://github.com/pkalin/shadewright/issues/493)); the other, from a
+  readiness-probe Incident, took 64Mi from an old pod as the previous value
+  ([#494](https://github.com/pkalin/shadewright/issues/494)).
+- 2026-11-08 (rc.5): [pkalin/shadewright-fleet#51](https://github.com/pkalin/shadewright-fleet/pull/51) (48Mi to
+  64Mi) 3m13s after the first symptom. One OOM opened three Incidents for `demo/web` (`OOMKilled` 07:14:59, `BackOff`
+  07:17:31, `Unhealthy` 07:17:46), each analyzed (proposals 64Mi, 72Mi, 64Mi); the target lock kept it to one pull
+  request ([#432](https://github.com/pkalin/shadewright/issues/432)). Merged 07:33:28, the executor recorded the
+  merge at 07:33:40 (12 s), Flux applied it at 07:34:10, and the new pod ran at 64Mi without restarts. The two
+  waiting duplicate requests then ended `NeedsIntervention`, reason `KustomizationNotReady` (Flux was mid-reconcile
+  of the fix).
+
 ## Expected diagnosis
 
+The diagnosis step runs (scored by the real-model evaluation, https://shadewright.io/evaluation/), so this status
+stays `planned` only because facts are still missed: the metric name `container_memory_limit_bytes` is often missing.
 It should name
 `OOMKilled` from the container status (`lastState.terminated.reason`), not from an event reason, the restart count
 (from the pod status, through a read-only tool that is not built), and the memory working set from Prometheus
@@ -60,8 +81,8 @@ Prometheus read goes through the `MetricsSource` interface, which is not wired i
 
 A pull request with `SetContainerMemoryLimit` on container `web`, raising the limit within the policy's bounds. It
 changes only `resources.limits.memory` in `apps/demo/web-deployment.yaml`. This is the positive stage 2 case.
-Observed so far: the pull request step with a hand-written request (above), and a model analysis that handed off
-for missing data (above). Planned: the analyzer producing that request from the Incident and a diagnosis. The bounds in `expected.yaml` (`64Mi` to `128Mi`) are what a sensible
+Observed: the analyzer producing the request from the Incident and a diagnosis, and the pull request, its merge and
+the fixed pod (above). The bounds in `expected.yaml` (`64Mi` to `128Mi`) are what a sensible
 policy for this lab allows: the container needs about 54Mi, so anything below `64Mi` would be killed again or leave
 no headroom, and the baseline value of `64Mi` is a 33% increase, within the default `maxIncreasePercent` of 50. The
 policy that applies them lives in the operator repository, not here.
