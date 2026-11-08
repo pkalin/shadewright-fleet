@@ -2,9 +2,9 @@
 
 `make scenario-statefulset-oom CLUSTER=kind|lab` replaces `apps/demo/cache-statefulset.yaml`.
 
-**Status: run on the lab on 2026-11-08 (v0.3.0-rc.5), up to an open pull request.** The Incident and the pull request
-were seen (below). The pull request was not merged, so the rollout after a merge and the manual pod delete are not
-checked. The diagnosis stays `planned` in `expected.yaml`: it runs, but misses facts (below).
+**Status: run on the lab on 2026-11-08 (v0.3.0-rc.5), up to a merged pull request.** The Incident and the pull request
+were seen (below). The pull request was merged at 08:30:03 UTC while the lab was being destroyed, so the rollout after a
+merge and the manual pod delete are not checked. The diagnosis stays `planned` in `expected.yaml`: it runs, but misses facts (below).
 
 ## What breaks
 
@@ -61,7 +61,7 @@ Times UTC, after [pkalin/shadewright-fleet#52](https://github.com/pkalin/shadewr
 - [pkalin/shadewright-fleet#54](https://github.com/pkalin/shadewright-fleet/pull/54) (the `cache` container, 48Mi to
   72Mi, +50%) at 08:27:39. Two more Incidents (`BackOff`, `Unhealthy`) for the same subject did not make more pull
   requests ([pkalin/shadewright#432](https://github.com/pkalin/shadewright/issues/432)).
-- Not merged, so the manual pod delete after a merge is still not checked.
+- Merged at 08:30:03 UTC as the lab was destroyed, so the delivery and the manual pod delete after a merge are still not checked.
 - Real-model replay evaluation on rc.5 (https://shadewright.io/evaluation/): 0 of 5 runs with all facts. The
   diagnosis never names `cache-0`, and often leaves out the metric names.
 

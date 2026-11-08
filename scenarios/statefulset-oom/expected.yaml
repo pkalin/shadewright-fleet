@@ -23,7 +23,7 @@ diagnosis:
 outcome:
   type: pull-request
   status: observed
-  note: Observed on the lab on 2026-11-08 (v0.3.0-rc.5), after pkalin/shadewright-fleet#52 added apps/demo/*-statefulset.yaml to the policy demo-memory. The OOMKilled Incident at about 08:24:44 UTC led to pkalin/shadewright-fleet#54 (cache container 48Mi to 72Mi, +50%) at 08:27:39. Two more Incidents (BackOff, Unhealthy) for the same subject did not make more pull requests (pkalin/shadewright#432). It was not merged, so the manual pod delete after a merge is still not checked (see the README). The real-model replay evaluation on rc.5 had 0 of 5 runs with all facts.
+  note: Observed on the lab on 2026-11-08 (v0.3.0-rc.5), after pkalin/shadewright-fleet#52 added apps/demo/*-statefulset.yaml to the policy demo-memory. The OOMKilled Incident at about 08:24:44 UTC led to pkalin/shadewright-fleet#54 (cache container 48Mi to 72Mi, +50%) at 08:27:39. Two more Incidents (BackOff, Unhealthy) for the same subject did not make more pull requests (pkalin/shadewright#432). It was merged at 08:30:03 UTC as the lab was destroyed, so the delivery and the manual pod delete after a merge are still not checked (see the README). The real-model replay evaluation on rc.5 had 0 of 5 runs with all facts.
   action: SetContainerMemoryLimit
   bounds:
     min: 64Mi
