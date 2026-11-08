@@ -27,7 +27,7 @@ KUSTOMIZE=kustomize KUBECONFORM=kubeconform
 cfg="$SRC_ROOT/infrastructure/shadewright-lab-config"
 
 run render_dir "$cfg"
-expect_ok "the lab configuration passes with its samples" "Valid: 2, Invalid: 0"
+expect_ok "the lab configuration passes with its samples" "Valid: 3, Invalid: 0"
 # shellcheck disable=SC2016 # expanded by the inner bash
 check "every substitution is replaced by its sample" bash -c '! grep -q "\${" "$T_RENDERED"'
 check "a number is substituted unquoted" grep -q 'installationID: 12345678$' "$T_RENDERED"
