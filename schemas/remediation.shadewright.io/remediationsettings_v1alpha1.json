@@ -373,7 +373,7 @@
       "description": "status is the analyzer's detection report. It does not report whether repositories or signers are usable.",
       "properties": {
         "conditions": {
-          "description": "conditions report problems. The analyzer writes UnknownModules: True when spec.modules names a module\nthat it does not have compiled in, which then contributes nothing; DetectionFailed: True when its\nlast run could not list the nodes or read the discovery API, so the report is from the last run that\nsucceeded, or shows only generic active when none has; and NoWatchedNamespaces: True when it was\nstarted with no namespace to watch (the chart's default), so it reads no events or pods and records no\nIncident.",
+          "description": "conditions report problems. The analyzer writes UnknownModules: True when spec.modules names a module\nthat it does not have compiled in, which then contributes nothing; DetectionFailed: True when its\nlast run could not list the nodes or read the discovery API, so the report is from the last run that\nsucceeded, or shows only generic active when none has; and NoWatchedNamespaces: True when it was\nstarted with no namespace to watch (the chart's default), so it reads no events or pods and records no\nIncident; and SymptomSourcesNotWatched: True when an active module declares a symptom source for a kind\nthe collector does not watch (not served, not granted, or the check or the watch failed), Unknown while\nsuch a kind has not been checked yet, set only while it watches namespaces. A kind whose optional grant\nthe chart leaves out on purpose (the Kyverno cluster-wide kinds) is not reported.",
           "items": {
             "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
@@ -492,7 +492,7 @@
         },
         "platform": {
           "additionalProperties": false,
-          "description": "platform is the platform the analyzer detected and the one it uses. The analyzer writes it at start, when\nspec changes and every 10 minutes (ADR-0024), with the only write it has outside the operator namespace.\nStatus is a report, never an input: no component reads any field of it to decide anything.",
+          "description": "platform is the platform the analyzer detected and the one it uses. The analyzer writes it at start, when\nspec changes, every 10 minutes, and when the watch state of a symptom source kind changes (ADR-0024),\nwith the only write it has outside the operator namespace.\nStatus is a report, never an input: no component reads any field of it to decide anything.",
           "properties": {
             "active": {
               "description": "active is the platform whose module contributes hooks: detected when it is enabled in\nspec.modules.platforms, generic otherwise.",
