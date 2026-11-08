@@ -26,34 +26,49 @@ worker's pinned image, which is expected to ship `curl` (not checked). The exist
 its traffic to the worker (`allow-http-in-namespace`) and DNS. The scenario replaces `apps/demo/kustomization.yaml`
 only to list the new file.
 
-## Expected Incident (planned, blocked)
+## Incident (observed)
 
-No signal creates this Incident today. The collector reads Warning events and Pod terminations, and has no read access
-to HPAs or ScaledObjects. As far as I know neither KEDA nor the HPA controller writes a Warning event at the maximum
-(not verified against their sources). The KEDA module's HPA symptom source reads the condition and reports
-`ReplicaCeiling`, but the analyzer does not consume module symptom sources yet:
-[pkalin/shadewright#380](https://github.com/pkalin/shadewright/issues/380). Until it lands this scenario has no
-Incident, which `expected.yaml` marks planned.
+The collector reads Warning events and Pod terminations, and has no read access to HPAs or ScaledObjects. The
+Incident comes from the KEDA module's HPA symptom source, which reads the condition and reports `ReplicaCeiling`;
+the analyzer consumes module symptom sources
+([pkalin/shadewright#380](https://github.com/pkalin/shadewright/issues/380), closed 2026-11-05). Lab runs, times UTC:
 
-## Expected diagnosis (planned)
+- 2026-11-07 (v0.3.0-rc.4): the Incident opened; the analysis ended `MissingData` and was escalated to a person (no
+  metrics template for HPA metrics, [pkalin/shadewright#480](https://github.com/pkalin/shadewright/issues/480)).
+- 2026-11-08 (rc.5), first run: no Incident for 14 minutes. Since
+  [pkalin/shadewright#478](https://github.com/pkalin/shadewright/issues/478) the KEDA symptom sources run only while
+  `RemediationSettings` `spec.modules.integrations` lists `keda`, and the lab listed none.
+  [pkalin/shadewright-fleet#52](https://github.com/pkalin/shadewright-fleet/pull/52) listed `keda` and added the policy
+  `demo-keda` (2 to 3, at most +50%, no decrease, `apps/demo/*-scaledobject.yaml`).
+- Then a `ReplicaCeiling` Incident on the ScaledObject at about 08:18:54, one Incident and one request, no duplicates.
 
-Not observed: the diagnosis step is not built. It should name the ceiling (`ScalingLimited` True, reason
+## Diagnosis (observed)
+
+The real-model replay evaluation on rc.5 (5 repeats, https://shadewright.io/evaluation/) proposed
+`AdjustKedaMaxReplicas` within bounds in 5 of 5 runs with all scored facts, so `expected.yaml` marks the diagnosis
+observed. It names the ceiling (`ScalingLimited` True, reason
 `TooManyReplicas`, `maxReplicas` and `currentReplicas` both 2), the owning ScaledObject `worker`, and the backlog (the
 current metric value against its target), all from the `ReplicaCeiling` symptom evidence. It then relies on the
 `KedaReady` rule at the policy step to confirm the ScaledObject is healthy; a symptom source sees only the HPA, so the
 ceiling alone is a candidate. Request rate over time would come from Prometheus through `MetricsSource` (not wired).
 
-## Expected outcome (planned)
+## Outcome (observed, 2026-11-08, v0.3.0-rc.5)
+
+[pkalin/shadewright-fleet#53](https://github.com/pkalin/shadewright-fleet/pull/53) (`maxReplicaCount` 2 to 3, one
+field) opened 53 s after the Incident. Merged 08:22:00 UTC, the executor saw it at 08:22:01, and the HPA was at 3 of
+3 with `ScalingLimited` False (`DesiredWithinRange`) by 08:23:51.
+
+## Expected outcome
 
 A pull request with `AdjustKedaMaxReplicas`, `previousValue` 2 and `desiredValue` 3, changing only
 `spec.maxReplicaCount` in `apps/demo/worker-scaledobject.yaml`. A policy with `min: 2`, `max: 3` and
 `maxIncreasePercent: 50` allows it: the step 2 to 3 is exactly 50%, which the check accepts (it compares with `<=`).
 The load of about 13 requests per second needs 3 replicas, so 3 clears the ceiling and the new bounds stop at 3.
 
-Prerequisites outside this repository, none built here: the `keda` integration enabled in `RemediationSettings`
-(`spec.modules.integrations`, already in the operator's lab sample), and a lab `RemediationPolicy` for
-`AdjustKedaMaxReplicas` on namespace `demo` with the path `apps/demo/*-scaledobject.yaml`. The operator's samples have
-only a memory limit policy for the lab, and the generic KEDA sample targets another namespace and path.
+Prerequisites, both now in this repository (`infrastructure/shadewright-lab-config/`, from
+[pkalin/shadewright-fleet#52](https://github.com/pkalin/shadewright-fleet/pull/52)): the `keda` integration enabled in
+`RemediationSettings` (`spec.modules.integrations`), and the lab `RemediationPolicy` `demo-keda` for
+`AdjustKedaMaxReplicas` on namespace `demo` with the path `apps/demo/*-scaledobject.yaml`.
 
 ## Restricted profile
 
@@ -62,7 +77,7 @@ Nothing in the Pod Security "restricted" profile is broken. The deliberate chang
 
 ## Verify
 
-Planned, not run yet.
+Run on the lab on 2026-11-08 (above); the commands on Kind are the same.
 
 ```bash
 make kind-up && make kind-wait
