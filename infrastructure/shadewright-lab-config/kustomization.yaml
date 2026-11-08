@@ -17,3 +17,4 @@ kind: Kustomization
 resources:
   - remediationsettings.yaml
   - remediationpolicy-demo-memory.yaml
+  - remediationpolicy-demo-keda.yaml

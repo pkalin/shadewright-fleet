@@ -1,0 +1,24 @@
+# The lab's demo-keda policy, named by infrastructure/shadewright-lab's actionPolicies. Allows raising the
+# maxReplicaCount of ScaledObjects in the demo namespace to between 2 and 3, in steps of at most 50%; decreases are
+# refused and a person approves every pull request. The bounds are the keda-at-ceiling scenario's
+# (scenarios/keda-at-ceiling/expected.yaml).
+apiVersion: remediation.shadewright.io/v1alpha1
+kind: RemediationPolicy
+metadata:
+  name: demo-keda
+spec:
+  requestNamespaces: [shadewright-system]
+  targets:
+    namespaces: [demo]
+  actions:
+    - type: AdjustKedaMaxReplicas
+      adjustKedaMaxReplicas:
+        min: 2
+        max: 3
+        maxIncreasePercent: 50
+        maxDecreasePercent: 0
+  gitOps:
+    repositoryRef: fleet
+    allowedPaths:
+      - apps/demo/*-scaledobject.yaml
+  approval: Required

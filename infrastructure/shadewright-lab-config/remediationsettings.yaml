@@ -10,6 +10,11 @@ spec:
   paused: false
   # Cap on active requests (before the merge): more wait in Pending with the condition Queued.
   maxConcurrentRemediations: 1
+  # The KEDA module: its symptom sources (trigger errors, not ready, replica ceiling) open Incidents only while it is
+  # listed here (operator #478, since v0.3.0-rc.5); detected alone it stays inactive. Needed by keda-at-ceiling and
+  # broken-keda-trigger.
+  modules:
+    integrations: [keda]
   repositories:
     - name: fleet
       url: "${FLEET_REPOSITORY_URL}"
