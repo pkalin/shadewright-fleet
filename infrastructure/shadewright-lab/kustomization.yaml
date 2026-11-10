@@ -22,6 +22,9 @@
 # actionPolicies names the RemediationPolicies in infrastructure/shadewright-lab-config. The daily cap lives in the
 # RemediationSettings there (analysis.maxAnalysesPerDay, 10 for the lab), with the endpoint and deployment; the chart
 # has no value for it.
+# executor.reviewerHints.enabled turns reviewer hints on (operator ADR-0028, off by default) for the lab runbook
+# docs/lab-oom-hint.md. The cluster/* ruleset must require the check shadewright/review from the Shadewright App (README,
+# "Reviewer hints and the shadewright/review check"); without that rule the check does not hold a steered change.
 #
 # The federated credentials of both identities name the namespace shadewright-system and the ServiceAccounts
 # shadewright-analyzer and shadewright-executor (lab/federation.tf: operator_namespace, analyzer_service_account and
@@ -57,6 +60,8 @@ patches:
               azure:
                 clientId: "${ANALYZER_CLIENT_ID}"
           executor:
+            reviewerHints:
+              enabled: true
             identity:
               azure:
                 clientId: "${EXECUTOR_CLIENT_ID}"
