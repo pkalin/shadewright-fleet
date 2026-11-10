@@ -80,6 +80,17 @@ branch Flux tracks, and `main` takes changes only through a reviewed pull reques
 
 The ruleset lives in the repository settings, not in Git; changing it is the maintainer's.
 
+## Reviewer hints and the `shadewright/review` check
+
+Reviewer hints are off by default. When they are on (chart value `executor.reviewerHints.enabled`), the ruleset of
+the branch the operator opens its pull requests against must require the status check `shadewright/review`, with
+the Shadewright GitHub App as the expected source. Without the rule, a hint-steered change is not held by the
+check.
+
+In this lab fleet the maintainer is on the bypass list, and a bypass actor can merge past the check, including a
+change it steered itself with a hint. GitHub logs every bypass. The App is never a bypass actor. The setup steps are
+in the operator's `docs/how-to/turn-on-reviewer-hints.md` and ADR-0028.
+
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).
