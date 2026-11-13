@@ -190,5 +190,9 @@ What each layer proves today. A cell without a link has no evidence yet.
 | Setup by hand | the scenario's own mechanism works on a Kind cluster, rendered and applied with `kubectl`, without Flux or the agent | `delivery-blocked` (the policy refuses 64Mi, passes 48Mi and 60Mi), `rollout-blocked` (the ReplicaSet cannot create a 64Mi pod), `statefulset-partition` (`cache-0` stays on the old revision) | 2026-11-13, Kind node image of `scripts/tools.env`; see each README. Flux, the Incident and the request were not run |
 | Full acceptance | Incident, request, pull request and policy outcome end to end | `oom` (from the analyzer, merged and fixed), `keda-at-ceiling` (the same), `statefulset-oom` (up to a merged pull request, delivery not checked) | `oom`: [#51](https://github.com/pkalin/shadewright-fleet/pull/51) on 2026-11-08 (v0.3.0-rc.5); `keda-at-ceiling`: [#53](https://github.com/pkalin/shadewright-fleet/pull/53); `statefulset-oom`: [#54](https://github.com/pkalin/shadewright-fleet/pull/54), not merged. History: [#26](https://github.com/pkalin/shadewright-fleet/pull/26), a hand-written request on 2026-11-04 |
 
+`oom-leak` and `keda-ceiling-persists` are the load-driven scenarios of rows 2 and 8 of the matrix. Both have a
+`loadgen` Deployment and replace `apps/demo/kustomization.yaml` to list it. They are not in the table above: `oom-leak` ran on
+a throwaway Kind cluster without an agent (see its README), `keda-ceiling-persists` has not run.
+
 The other scenarios stop at schema, render and harness. `statefulset-oom` (the StatefulSet case,
 [#269](https://github.com/pkalin/shadewright/issues/269)) ran on the lab up to a merged pull request; its delivery is not checked.

@@ -1,0 +1,37 @@
+# Scenario keda-ceiling-persists: the same ScaledObject as keda-at-ceiling (maxReplicaCount 2 instead of 3). With the
+# heavier load of loadgen-deployment.yaml the metric asks for 5 replicas, so the HPA is at its ceiling of 2, and still
+# at 3 after the fix raises it to 3.
+# Scales the worker on the rate of HTTP requests (jobs) it handles, read from Prometheus. The trigger needs no
+# cloud account or credentials. AdjustKedaMaxReplicas patches maxReplicaCount in place, so it stays a literal
+# value in this file (ADR-0012).
+#
+# - The counter also counts the kubelet's probes (about 0.2/s), far below the threshold, so a quiet worker
+#   returns a small value, never an empty result.
+# - An empty result is an error (ignoreNullValues "false"), not a healthy 0: if the metric source dies (no
+#   scrape, wrong labels, Prometheus down) the ScaledObject reports it instead of hiding it.
+# - Prometheus scrapes demo pods every 15s (infrastructure/prometheus), so the 1m window holds about 4 samples.
+# - No cooldownPeriod: it only applies to scaling to and from zero, and minReplicaCount is 1. Scale-down
+#   follows the HPA's default 5 minute stabilization window.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: worker
+  pollingInterval: 30
+  minReplicaCount: 1
+  maxReplicaCount: 2
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.prometheus.svc.cluster.local
+        query: sum(rate(http_requests_total{namespace="demo", app_kubernetes_io_name="worker"}[1m]))
+        threshold: "5"
+        ignoreNullValues: "false"

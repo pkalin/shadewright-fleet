@@ -1,0 +1,89 @@
+# The web app the scenarios break (bad image, missing Secret reference, OOM). podinfo serves HTTP on 9898 and
+# Prometheus metrics on 9797. Remediation PRs may change values in this file in place (for example the memory
+# limit, SetContainerMemoryLimit), so keep every value literal: no patches or generators (ADR-0012).
+# Image: https://github.com/stefanprodan/podinfo (6.17.0, multi-arch index digest on ghcr.io); the image's
+# user "app" is uid 100, gid 101.
+# SCENARIO oom-leak (scenarios/oom-leak): the data volume is memory-backed (tmpfs, charged to the container's memory cgroup) and
+# its sizeLimit is above the container limit, so the loadgen Deployment's posts to /store fill the memory limit at a steady rate and the
+# container is killed once the limit is reached. The limit stays 64Mi here; a pull request raises it and the kill returns later.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: web
+    app.kubernetes.io/part-of: demo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web
+        app.kubernetes.io/part-of: demo
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9797"
+    spec:
+      serviceAccountName: web
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: ghcr.io/stefanprodan/podinfo:6.17.0@sha256:fa2f27c1a8561097e5144bfc0853eba6054d743b68b03de4cad4675616ddefb0
+          imagePullPolicy: IfNotPresent
+          command:
+            - ./podinfo
+            - --port=9898
+            - --port-metrics=9797
+            - --level=info
+          env:
+            - name: PODINFO_UI_MESSAGE
+              value: shadewright demo web
+          ports:
+            - name: http
+              containerPort: 9898
+              protocol: TCP
+            - name: http-metrics
+              containerPort: 9797
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir:
+            medium: Memory
+            sizeLimit: 128Mi

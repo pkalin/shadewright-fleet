@@ -62,7 +62,7 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   manifests only; values the patchers change (memory limits, `maxReplicaCount`) stay literal. The worker has no
   `spec.replicas`: the HPA that KEDA creates owns it.
 - `scenarios/`: one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod,
-  broken KEDA trigger, invalid manifest, StatefulSet OOM), each with a `README.md` (what breaks, the expected diagnosis and the
+  broken KEDA trigger, invalid manifest, StatefulSet OOM, and the load-driven `oom-leak` and `keda-ceiling-persists`), each with a `README.md` (what breaks, the expected diagnosis and the
   expected PR or refusal), an `expected.yaml` (schema in `scenarios/schema/`) and the broken versions of files
   under `apps/demo/`, at `scenarios/<name>/apps/demo/<file>`. Layout and schema: `scenarios/README.md`.
 - `scripts/`: `render.sh` (the render check), `scenario.sh` (the scenario harness), `kind.sh` (the Kind cluster),
