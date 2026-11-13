@@ -151,6 +151,11 @@ scenario new-listed
 mkdir -p scenarios/new-listed/apps/demo
 printf 'kind: ConfigMap\n' >scenarios/new-listed/apps/demo/extra.yaml
 printf 'resources:\n  - web.yaml\n  - worker.yaml\n  - "extra.yaml" # added\n' >scenarios/new-listed/apps/demo/kustomization.yaml
+# A scenario's kustomization.yaml must keep everything the base lists, or Flux prunes the omitted workload.
+scenario drops-base
+mkdir -p scenarios/drops-base/apps/demo
+printf 'kind: Deployment\nmetadata:\n  name: web\n# broken by drops-base\n' >scenarios/drops-base/apps/demo/web.yaml
+printf 'resources:\n  - web.yaml\n' >scenarios/drops-base/apps/demo/kustomization.yaml
 # expected.yaml forms the harness cannot read exactly are refused, never guessed.
 scenario block-render '' "$(printf 'render: >-\n  fails')"
 scenario quoted
@@ -223,6 +228,7 @@ for case_ in "outside:is outside apps/demo/" "linked:is not a regular file" "ext
   "new-file:apps/demo/extra.yaml is new: the scenario must also replace apps/demo/kustomization.yaml" \
   "new-unlisted:kustomization.yaml does not list extra.yaml" \
   "new-dir:apps/demo/sub/ does not exist on the base commit" \
+  "drops-base:does not list worker.yaml, which apps/demo/kustomization.yaml on the base commit lists" \
   "block-render:cannot read render"; do
   name="${case_%%:*}"
   run env CLUSTER=kind scripts/scenario.sh apply "$name"
@@ -357,7 +363,7 @@ run scripts/scenario.sh check
 expect_fail "check reports every broken fixture, not only the first" "scenarios/outside/infrastructure/x.yaml is outside apps/demo/"
 check "check reports the later ones too" sh -c "printf '%s' \"\$1\" | grep -q 'new-dir/apps/demo/sub/extra.yaml'" _ "$OUT"
 git rm -rq scenarios/outside scenarios/linked scenarios/extra-field scenarios/unmarked scenarios/misnamed scenarios/no-readme \
-  scenarios/new-file scenarios/new-unlisted scenarios/new-dir scenarios/block-render
+  scenarios/new-file scenarios/new-unlisted scenarios/new-dir scenarios/block-render scenarios/drops-base
 git commit -q -m "drop the invalid fixtures"
 run scripts/scenario.sh check
 expect_ok "check passes on valid scenarios" "== scenarios/good"

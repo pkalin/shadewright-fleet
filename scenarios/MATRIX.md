@@ -33,13 +33,13 @@ Where it runs:
 | # | Row | Setup | Expected phase | Expected reason | Runs on | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Limit too low, raised within policy | `make scenario-oom CLUSTER=lab`; merge the pull request (48Mi to 64Mi, inside the `demo-memory` bounds of 64Mi to 128Mi) | `Succeeded` after `Merged`, `WaitingForDelivery` and `Verifying`, once rolled out, configured and a quiet window of at least 10 minutes plus the node grace held (the memory minimum for `stableFor`) | condition `Verified=True`, `Cleared=True` with reason `NoRecurrence` | Lab | exists (`oom`); the outcome needs ADR-0030 built |
-| 2 | Leak: the limit is raised, the kill returns later | `oom-leak`: `web` with a memory-backed volume that a load Deployment fills at a steady rate (see below) | `Failed`, at once when the kill is seen after the rollout | `OOMKilled`; the revert is row 10 | Lab (second cluster as an alternative) | new scenario needed |
+| 2 | Leak: the limit is raised, the kill returns later | `oom-leak`: `web` with a memory-backed volume that a load Deployment fills at a steady rate (see below) | `Failed`, at once when the kill is seen after the rollout | `OOMKilled`; the revert is row 10 | Lab | exists (`oom-leak`); the kill was settled on Kind (see below), the outcome is planned: no agent ran |
 | 3 | Merged, but the Kustomization fails to apply | `delivery-blocked`: the `oom` files plus a `ValidatingAdmissionPolicy` and its binding that refuse a `web` memory limit above 60Mi (see below) | `Merged`, then `WaitingForDelivery`, then `Failed` at the end of the delivery window (one hour after the merge) | `DeliveryFailed`, because Flux failed on exactly the merge commit; the condition `RolledOut=False` with `DeliveryNotObserved` is what the code sets today | Lab | exists (`delivery-blocked`); the admission refusal was checked by hand on Kind, not through Flux or the agent |
 | 4 | Applied, but the pods keep the old value | `rollout-blocked`: the `oom` files plus a `LimitRange` whose container `max` memory is 56Mi (see below) | `Failed` at the timeout (21 minutes from the applied revision with the defaults), never `Succeeded` | `RolloutStuck`, because `RolledOut` is False (set today 10 minutes after the revision was applied) | Lab | exists (`rollout-blocked`); the LimitRange refusal was checked by hand on Kind, not through Flux or the agent |
 | 5 | The incident stops before the pull request merges | `keda-load-burst`: `keda-at-ceiling` with a load that ends by itself after a few minutes; leave the pull request unmerged (see below) | open: ADR-0030 gives no phase for it | open | Lab | new scenario needed; the outcome is not decided |
 | 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | `NeedsIntervention`, today and under ADR-0030 (decided 2026-11-13: a person rejecting a proposal is a signal the circuit breaker counts as a failure). No second pull request ([shadewright#643](https://github.com/pkalin/shadewright/issues/643), fixed in #674) | `ChangeRequestClosed` | Lab | exists (`oom`); the "no second pull request" half was fixed in [#674](https://github.com/pkalin/shadewright/pull/674) (merged 2026-11-13, not released yet), so it holds from the next release after v0.4.0 |
 | 7 | Data missing during the window | no scenario: two procedures, a deleted or recreated target, and a stopped verifier (see below) | `Inconclusive` in both, never `Succeeded` and never `Failed` | `TargetGone` or `TargetReplaced` at once; `StaleReport` at the timeout when the verifier is stopped | Lab | new scenario needed (documented manual steps) |
-| 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Inconclusive` once rolled out and configured held for `stableFor` (3 minutes); never `Succeeded`, and not `Failed` on the symptom | `ClearingNotChecked` | Lab | new scenario needed |
+| 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Inconclusive` once rolled out and configured held for `stableFor` (3 minutes); never `Succeeded`, and not `Failed` on the symptom | `ClearingNotChecked` | Lab | exists (`keda-ceiling-persists`); rendered only, not run; the rate and the 5 desired replicas are not measured, the outcome is planned |
 | 9 | Partitioned StatefulSet rollout | `statefulset-partition`: the `statefulset-oom` files with `updateStrategy.rollingUpdate.partition: 1` on `cache`, so only `cache-1` can take the new limit (see below) | not `Succeeded`: `Inconclusive` at the timeout, unless the partition is lowered inside it | `PartialRollout`; `RolledOut` is True with its own reason `RolloutPartitioned` naming the pod left on the old revision | Lab | exists (`statefulset-partition`); the partition was checked by hand on Kind, not through Flux or the agent; the outcome needs ADR-0030 built |
 | 10 | Revert after a failed verification | the request of row 3 ends `Failed`; the analyzer then creates a revert request (see below) | a new pull request that needs approval; once merged, rolled out, configured and available for `stableFor`: `Inconclusive` | `RevertApplied` | Lab | new and planned |
 
@@ -76,10 +76,22 @@ from podinfo itself is its `/store` endpoint on a memory-backed volume:
   returns after a time set by the growth rate. Pick the rate so that this is longer than the delivery wait and shorter
   than `stableFor`.
 
-Not checked: that the kernel kills the container (rather than evicting the pod) when tmpfs fills the cgroup. If it
-does not, the smallest alternative is a second small public image whose only job is to grow, for example `busybox`
-running a shell loop that appends to a variable, as its own Deployment under `apps/demo/` (pinned by digest, which the
-repo requires). The `demo-memory` policy already covers any `apps/demo/*-deployment.yaml`.
+Checked on Kind (not on the lab): the kernel kills the container; the pod is not evicted. `lastState.terminated.reason`
+is `OOMKilled` with exit code 137, so the alternative image is not needed. Times with the final loadgen (`sleep 0.3`):
+
+- pod start to the first kill at a 64Mi limit: 2 min 25 s;
+- limit raised by hand to 96Mi (new pod, empty volume) to the second kill: 5 min 58 s.
+
+An earlier run with `sleep 0.5` took about 4 min 40 s and 8 min 37 s, too close to 10 minutes, so the rate was raised.
+Two facts the plan above did not foresee:
+
+- A container restart inside the same pod keeps the volume, so the container is killed again after about 30 s. Only a
+  new pod starts with an empty volume.
+- The kubelet sizes the memory-backed `emptyDir` to the container limit whatever `sizeLimit` says (`df` showed 65536
+  KiB at 64Mi). The container also holds 21 to 28 MiB of anonymous memory besides the volume, so the kill comes at about
+  35 MiB in the volume at 64Mi and about 65 MiB at 96Mi.
+
+The rate is Kind's and must be rechecked on the lab. The outcome (`Failed`) stays planned: no agent ran.
 
 ### Row 3: the Kustomization fails to apply after the merge
 
