@@ -36,11 +36,11 @@ Where it runs:
 | 3 | Merged, but the Kustomization fails to apply | `delivery-blocked`: the `oom` files plus a `ValidatingAdmissionPolicy` and its binding that refuse a `web` memory limit above 60Mi (see below) | `Merged`, then `WaitingForDelivery`, then `Failed` at the end of the delivery window (one hour after the merge) | `DeliveryFailed`, because Flux failed on exactly the merge commit; the condition `RolledOut=False` with `DeliveryNotObserved` is what the code sets today | Lab | new scenario needed |
 | 4 | Applied, but the pods keep the old value | `rollout-blocked`: the `oom` files plus a `LimitRange` whose container `max` memory is 56Mi (see below) | `Failed` at the timeout (21 minutes from the applied revision with the defaults), never `Succeeded` | `RolloutStuck`, because `RolledOut` is False (set today 10 minutes after the revision was applied) | Lab | new scenario needed |
 | 5 | The incident stops before the pull request merges | `keda-load-burst`: `keda-at-ceiling` with a load that ends by itself after a few minutes; leave the pull request unmerged (see below) | open: ADR-0030 gives no phase for it | open | Lab | new scenario needed; the outcome is not decided |
-| 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | today `NeedsIntervention`; after #95a of ADR-0030 `Cancelled`. No second pull request either way ([shadewright#643](https://github.com/pkalin/shadewright/issues/643)) | today `ChangeRequestClosed`; the ADR names no reason for the `Cancelled` end | Lab | exists (`oom`); the "no second pull request" half fails until #643 is fixed |
+| 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | `NeedsIntervention`, today and under ADR-0030 (decided 2026-11-13: a person rejecting a proposal is a signal the circuit breaker counts as a failure). No second pull request ([shadewright#643](https://github.com/pkalin/shadewright/issues/643)) | `ChangeRequestClosed` | Lab | exists (`oom`); the "no second pull request" half fails until #643 is fixed |
 | 7 | Data missing during the window | no scenario: two procedures, a deleted or recreated target, and a stopped verifier (see below) | `Inconclusive` in both, never `Succeeded` and never `Failed` | `TargetGone` or `TargetReplaced` at once; `StaleReport` at the timeout when the verifier is stopped | Lab | new scenario needed (documented manual steps) |
 | 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Inconclusive` once rolled out and configured held for `stableFor` (3 minutes); never `Succeeded`, and not `Failed` on the symptom | `ClearingNotChecked` | Lab | new scenario needed |
 | 9 | Partitioned StatefulSet rollout | `statefulset-partition`: the `statefulset-oom` files with `updateStrategy.rollingUpdate.partition: 1` on `cache`, so only `cache-1` can take the new limit (see below) | not `Succeeded`: `Inconclusive` at the timeout, unless the partition is lowered inside it | `PartialRollout`; `RolledOut` is True with its own reason `RolloutPartitioned` naming the pod left on the old revision | Lab | new and planned |
-| 10 | Revert after a failed verification | the request of row 3 ends `Failed`; the analyzer then creates a revert request (see below) | a new pull request that needs approval; once merged, rolled out and configured for `stableFor`: `Inconclusive` | `RevertApplied` | Lab | new and planned |
+| 10 | Revert after a failed verification | the request of row 3 ends `Failed`; the analyzer then creates a revert request (see below) | a new pull request that needs approval; once merged, rolled out, configured and available for `stableFor`: `Inconclusive` | `RevertApplied` | Lab | new and planned |
 
 Rows 1 and 6 use `oom` unchanged. Row 6 is also the case the `statefulset-oom` and `keda-at-ceiling` scenarios would
 give; one is enough. Row 1 for KEDA is not a `Succeeded` row: merging the pull request of `keda-at-ceiling` ends
@@ -124,9 +124,9 @@ a reset of `oom` cannot make this row: it tests row "Superseded" instead. The sy
 `keda-load-burst` is `keda-at-ceiling` with `loadgen` running its curl loop for a fixed time (a few minutes), then
 `sleep` for good. The ScaledObject file does not change, the HPA leaves its ceiling when the load ends, and the
 `ReplicaCeiling` Incident stops being observed while the pull request waits for review. The reviewer waits until the
-load has ended before looking. What the request does then is the point of the row, and ADR-0030 does not decide it. Its #95 items cover a close
-without a merge (#95a, `Cancelled`) and a symptom that stopped before the rollout of a merged change (#95b, `Cleared`
-with reason `ResolvedBeforeRollout`); neither covers an unmerged pull request whose Incident has ended. The row stays
+load has ended before looking. What the request does then is the point of the row, and ADR-0030 does not decide it. Its #95 items cover a merge
+conflict before the merge (#95a) and a symptom that stopped before the rollout of a merged change (#95b, `Cleared`
+with reason `ResolvedBeforeRollout`); a close without a merge is row 6. Neither covers an unmerged pull request whose Incident has ended. The row stays
 open until the remaining part of #95 decides it. If a person merges after the load ended, #95b is the case that applies.
 
 ### Row 7: data missing
@@ -155,7 +155,7 @@ maximum, a growing backlog) is not visible in container status, so in v0.5.0 `Cl
 `ClearingNotChecked`. Once rolled out (`Delivered` and `KedaReady`) and configured held for `stableFor`, the request
 ends `Inconclusive`. A KEDA request cannot end `Succeeded` or `Failed` on its symptom until metrics are evidence
 ([shadewright#508](https://github.com/pkalin/shadewright/issues/508) and
-[#506](https://github.com/pkalin/shadewright/issues/506)); `Failed` is possible only with `KedaNotReady`. A request
+[#506](https://github.com/pkalin/shadewright/issues/506)); `Failed` is possible only for a failed delivery (`DeliveryFailed`, `RolloutStuck`) or `KedaNotReady`. A request
 that names the check `QueueBacklogDecreasing` ends `Inconclusive` with `CheckNotAvailable`. So the row shows that the
 persistent ceiling is not reported as success, not that it is caught.
 
@@ -179,9 +179,11 @@ admission rule accepts. After the request ends `Failed` with `DeliveryFailed`, t
 deterministic code, with no model call: the same Incident and target, `previous` and `desired` swapped,
 `approvalRequired: true` and a link to the failed request, named from the failed request's UID so that a repeat finds
 the same one. It goes through the policy check, the freshness check and the target lock like any request, and opens a
-pull request that needs a person's approval. Once that is merged, rolled out and configured for `stableFor`, the revert
-ends `Inconclusive` with `RevertApplied`, never `Succeeded`. The Incident stays escalated. Two cases to check
-beside it: a revert of a revert is never created, and an `Inconclusive` request never gets one.
+pull request that needs a person's approval. Once that is merged, rolled out, configured and available for `stableFor` on the executor's clock, the revert
+ends `Inconclusive` with `RevertApplied`, never `Succeeded`. The verifier writes no report for it, so the OOM rule and
+`Cleared` do not apply (`Cleared` stays `Unknown`, reason `RevertApplied`). The Incident stays escalated. Cases to check
+beside it: a revert of a revert is never created, an `Inconclusive` request never gets one, and a request whose revert
+link is not the exact inverse of a failed request ends `Denied` with `InvalidRevert` before any Git write.
 
 Open: a revert of a memory increase is a decrease, and policies refuse decreases by default (`maxDecreasePercent` 0).
 Without a policy rule for reverts the revert ends `Denied` with `DecreaseNotAllowed`. #96 decides that rule, so the
