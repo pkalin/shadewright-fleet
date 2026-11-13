@@ -7,14 +7,18 @@ Tracked in [shadewright#672](https://github.com/pkalin/shadewright/issues/672).
 
 ## Names on this page
 
-Phases and reasons are the ones in the operator's API (`api/v1alpha1/remediationrequest_types.go` in
+Phases and reasons that exist today are the ones in the operator's API (`api/v1alpha1/remediationrequest_types.go` in
 `pkalin/shadewright`): `Merged`, `WaitingForDelivery`, `Verifying`, `Succeeded`, `Failed`, `Expired`, `Cancelled`,
 `Superseded`, `NeedsIntervention`. The reasons `ChangeRequestClosed`, `RolloutStuck`, `DeliveryNotObserved`,
 `RolloutNotDetermined` and `HelmManaged` exist in the code. The troubleshooting page of the operator says nothing sets
 `WaitingForDelivery`, `Verifying`, `Succeeded`, `Failed` or `Cancelled` yet, so every row that ends there is planned
-until the design of [shadewright#248](https://github.com/pkalin/shadewright/issues/248) is accepted and built. Any name
-the rows need that does not exist yet is written as "to be named by the design of #248". There is no phase
-`Inconclusive`, no revert action and no reason for a persistent ceiling today.
+until the design of [shadewright#248](https://github.com/pkalin/shadewright/issues/248) is built.
+
+The other names on this page (the phase `Inconclusive`, the reasons `OOMKilled`, `DeliveryFailed`, `TargetGone`,
+`TargetReplaced`, `ClearingNotChecked`, `RevertApplied` and the rest, and the conditions `Configured` and `Cleared`)
+come from [ADR-0030](https://github.com/pkalin/shadewright/blob/248-verification-design/docs/adr/0030-merge-receipt-and-verification-outcomes.md)
+as proposed in [pull request 673](https://github.com/pkalin/shadewright/pull/673). It is not accepted yet: these names
+change with it, and this page is corrected in the same step. None of them exist in the operator today.
 
 Where it runs:
 
@@ -27,17 +31,20 @@ Where it runs:
 
 | # | Row | Setup | Expected phase | Expected reason | Runs on | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Limit too low, raised within policy | `make scenario-oom CLUSTER=lab`; merge the pull request (48Mi to 64Mi, inside the `demo-memory` bounds of 64Mi to 128Mi) | `Succeeded` after `Merged`, `WaitingForDelivery` and `Verifying`, once the checks held for `stableFor` | condition `Verified=True`, reason to be named by the design of #248 | Lab | exists (`oom`); the outcome needs the checks of #248 |
-| 2 | Leak: the limit is raised, the kill returns later | `oom-leak`: `web` with a memory-backed volume that a load Deployment fills at a steady rate (see below) | `Failed` | to be named by the design of #248; the revert is a new request, whose action is to be named by the design of #248 | Lab (second cluster as an alternative) | new scenario needed |
-| 3 | Merged, but the Kustomization fails to apply | `delivery-blocked`: the `oom` files plus a `ValidatingAdmissionPolicy` and its binding that refuse a `web` memory limit above 60Mi (see below) | `Merged`, then `WaitingForDelivery`, then a timeout: `Failed` or `Expired`, to be named by the design of #248 | condition `RolledOut=False`, reason `DeliveryNotObserved` (set today one hour after the merge) | Lab | new scenario needed |
-| 4 | Applied, but the pods keep the old value | `rollout-blocked`: the `oom` files plus a `LimitRange` whose container `max` memory is 56Mi (see below) | not `Succeeded`; the final phase is to be named by the design of #248 | condition `RolledOut=False`, reason `RolloutStuck` (set today 10 minutes after the revision was applied) | Lab | new scenario needed |
-| 5 | The incident stops before the pull request merges | `keda-load-burst`: `keda-at-ceiling` with a load that ends by itself after a few minutes; leave the pull request unmerged (see below) | `Cancelled` | to be named by the design of #248 (the reasons of `Cancelled` today are the hand-off ones) | Lab | new scenario needed |
-| 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | `NeedsIntervention`, and no second pull request ([shadewright#643](https://github.com/pkalin/shadewright/issues/643)) | `ChangeRequestClosed` | Lab | exists (`oom`); the "no second pull request" half fails until #643 is fixed |
-| 7 | Data missing during the window | no scenario: after the merge, delete the target by hand while `apps` is suspended (see below) | to be named by the design of #248 (not `Succeeded`, not `Failed`) | to be named by the design of #248; for the rollout side `RolloutNotDetermined` exists | Lab | new scenario needed (a documented manual step) |
-| 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Failed` | to be named by the design of #248 | Lab | new scenario needed |
+| 1 | Limit too low, raised within policy | `make scenario-oom CLUSTER=lab`; merge the pull request (48Mi to 64Mi, inside the `demo-memory` bounds of 64Mi to 128Mi) | `Succeeded` after `Merged`, `WaitingForDelivery` and `Verifying`, once rolled out, configured and a quiet window of at least 10 minutes plus the node grace held (the memory minimum for `stableFor`) | condition `Verified=True`, `Cleared=True` with reason `NoRecurrence` | Lab | exists (`oom`); the outcome needs ADR-0030 built |
+| 2 | Leak: the limit is raised, the kill returns later | `oom-leak`: `web` with a memory-backed volume that a load Deployment fills at a steady rate (see below) | `Failed`, at once when the kill is seen after the rollout | `OOMKilled`; the revert is row 10 | Lab (second cluster as an alternative) | new scenario needed |
+| 3 | Merged, but the Kustomization fails to apply | `delivery-blocked`: the `oom` files plus a `ValidatingAdmissionPolicy` and its binding that refuse a `web` memory limit above 60Mi (see below) | `Merged`, then `WaitingForDelivery`, then `Failed` at the end of the delivery window (one hour after the merge) | `DeliveryFailed`, because Flux failed on exactly the merge commit; the condition `RolledOut=False` with `DeliveryNotObserved` is what the code sets today | Lab | new scenario needed |
+| 4 | Applied, but the pods keep the old value | `rollout-blocked`: the `oom` files plus a `LimitRange` whose container `max` memory is 56Mi (see below) | `Failed` at the timeout (21 minutes from the applied revision with the defaults), never `Succeeded` | `RolloutStuck`, because `RolledOut` is False (set today 10 minutes after the revision was applied) | Lab | new scenario needed |
+| 5 | The incident stops before the pull request merges | `keda-load-burst`: `keda-at-ceiling` with a load that ends by itself after a few minutes; leave the pull request unmerged (see below) | open: ADR-0030 gives no phase for it | open | Lab | new scenario needed; the outcome is not decided |
+| 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | today `NeedsIntervention`; after #95a of ADR-0030 `Cancelled`. No second pull request either way ([shadewright#643](https://github.com/pkalin/shadewright/issues/643)) | today `ChangeRequestClosed`; the ADR names no reason for the `Cancelled` end | Lab | exists (`oom`); the "no second pull request" half fails until #643 is fixed |
+| 7 | Data missing during the window | no scenario: two procedures, a deleted or recreated target, and a stopped verifier (see below) | `Inconclusive` in both, never `Succeeded` and never `Failed` | `TargetGone` or `TargetReplaced` at once; `StaleReport` at the timeout when the verifier is stopped | Lab | new scenario needed (documented manual steps) |
+| 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Inconclusive` once rolled out and configured held for `stableFor` (3 minutes); never `Succeeded`, and not `Failed` on the symptom | `ClearingNotChecked` | Lab | new scenario needed |
+| 9 | Partitioned StatefulSet rollout | `statefulset-partition`: the `statefulset-oom` files with `updateStrategy.rollingUpdate.partition: 1` on `cache`, so only `cache-1` can take the new limit (see below) | not `Succeeded`: `Inconclusive` at the timeout, unless the partition is lowered inside it | `PartialRollout`; `RolledOut` is True with its own reason `RolloutPartitioned` naming the pod left on the old revision | Lab | new and planned |
+| 10 | Revert after a failed verification | the request of row 3 ends `Failed`; the analyzer then creates a revert request (see below) | a new pull request that needs approval; once merged, rolled out and configured for `stableFor`: `Inconclusive` | `RevertApplied` | Lab | new and planned |
 
 Rows 1 and 6 use `oom` unchanged. Row 6 is also the case the `statefulset-oom` and `keda-at-ceiling` scenarios would
-give; one is enough. Rows 3 and 4 also need the scenario to render: the harness checks that with
+give; one is enough. Row 1 for KEDA is not a `Succeeded` row: merging the pull request of `keda-at-ceiling` ends
+`Inconclusive` with `ClearingNotChecked` (see row 8). Rows 3 and 4 also need the scenario to render: the harness checks that with
 `make check-scenarios`, and the new objects must be plain manifests with one object per file (ADR-0012).
 
 ## New scenarios, row by row
@@ -83,8 +90,11 @@ file starts at 48Mi, so the scenario applies. The agent's 64Mi is refused when F
 `Ready=False` with the admission message, and the request waits for a delivery that never comes. Check on Kind that
 the dry-run of the first apply passes and that Flux reports the second as a failure.
 
-The timeout is long (an hour from the merge, as the code stands), so run this row last in a session. Whether the
-wait ends `Failed` or `Expired` is for #248.
+The timeout is long (an hour from the merge, as the code stands), so run this row last in a session. ADR-0030 ends
+the wait `Failed` with `DeliveryFailed` only when Flux failed on exactly the merge commit. Do not push another commit
+to the cluster branch during the window: a failure on a later commit ends `Inconclusive` with `DeliveryBlocked`, and
+a suspended Kustomization with `DeliverySuspended`. The failed merge commit also blocks later commits until it is
+reverted, which is what row 10 uses.
 
 ### Row 4: the pods keep the old value
 
@@ -101,6 +111,9 @@ a separate refusal row, not this one. What the row needs is a change that Flux a
   the limit back to the old value. It is closest to "a patch overrides the field" but adds a controller or a newer API.
   Not recommended for the first run.
 
+With a `LimitRange` the request is `Failed` with `RolloutStuck` at the timeout, so it also leads to a revert request
+(ADR-0030, section 8), as row 3 does.
+
 A paused Deployment (`spec.paused: true`) gives the same end state but cannot be a scenario file: it would also stop the
 broken template of `oom` from rolling out, so no symptom would appear first.
 
@@ -111,15 +124,24 @@ a reset of `oom` cannot make this row: it tests row "Superseded" instead. The sy
 `keda-load-burst` is `keda-at-ceiling` with `loadgen` running its curl loop for a fixed time (a few minutes), then
 `sleep` for good. The ScaledObject file does not change, the HPA leaves its ceiling when the load ends, and the
 `ReplicaCeiling` Incident stops being observed while the pull request waits for review. The reviewer waits until the
-load has ended before looking. What the request does then is the point of the row, and is not decided yet.
+load has ended before looking. What the request does then is the point of the row, and ADR-0030 does not decide it. Its #95 items cover a close
+without a merge (#95a, `Cancelled`) and a symptom that stopped before the rollout of a merged change (#95b, `Cleared`
+with reason `ResolvedBeforeRollout`); neither covers an unmerged pull request whose Incident has ended. The row stays
+open until the remaining part of #95 decides it. If a person merges after the load ended, #95b is the case that applies.
 
 ### Row 7: data missing
 
 In v0.5.0 "cleared" is read from container status on a workload that still exists with the same UID
-(decision of 2026-11-13 in #248); the executor has no metrics source. So the data goes missing when the target
-does. The row is a procedure, not a scenario: after the merge and the rollout, suspend the `apps` Kustomization
-and delete the `web` Deployment (or delete and recreate it, which gives a new UID), wait through the window, then
-resume. The expectation is that a target that is gone or was recreated never ends in `Succeeded`.
+(decision of 2026-11-13 in #248); the executor has no metrics source. Two procedures give missing evidence. Neither is
+a scenario; both are manual steps after a merge.
+
+- A deleted or recreated target. After the merge and the rollout, suspend the `apps` Kustomization and delete the
+  `web` Deployment, wait, then resume. The request ends `Inconclusive` at once with `TargetGone`. To get
+  `TargetReplaced`, delete and recreate it (a new UID) instead. ADR-0030 does not wait for the window in either case.
+- A stopped verifier. During the window, scale the `shadewright-verifier` Deployment in the operator namespace to
+  zero (suspend its `HelmRelease` first if Flux restores the replicas). The executor then finds no fresh report
+  (`StaleReport`), the window never completes, and the request ends `Inconclusive` at the timeout (21 minutes for a
+  memory fix with the defaults), never `Succeeded`. The verifier is built in #93c, so this procedure is planned.
 
 ### Row 8: still at the ceiling
 
@@ -127,6 +149,43 @@ resume. The expectation is that a target that is gone or was recreated never end
 allows `maxReplicaCount` 2 to 3 and no more. `keda-ceiling-persists` raises the load to about 25 requests per second
 (`sleep 0.03` in `loadgen`; the rate is an estimate, tune it on Kind), so the trigger asks for 5 and the HPA stays at
 3 after the fix is applied.
+
+The expected outcome is not `Failed`. A ScaledObject has no pods of its own, and its symptom (scaling held at the
+maximum, a growing backlog) is not visible in container status, so in v0.5.0 `Cleared` stays `Unknown` with reason
+`ClearingNotChecked`. Once rolled out (`Delivered` and `KedaReady`) and configured held for `stableFor`, the request
+ends `Inconclusive`. A KEDA request cannot end `Succeeded` or `Failed` on its symptom until metrics are evidence
+([shadewright#508](https://github.com/pkalin/shadewright/issues/508) and
+[#506](https://github.com/pkalin/shadewright/issues/506)); `Failed` is possible only with `KedaNotReady`. A request
+that names the check `QueueBacklogDecreasing` ends `Inconclusive` with `CheckNotAvailable`. So the row shows that the
+persistent ceiling is not reported as success, not that it is caught.
+
+### Row 9: a partitioned StatefulSet (new, planned)
+
+`statefulset-partition` is `statefulset-oom` with `partition: 1` under `updateStrategy.rollingUpdate` in
+`cache-statefulset.yaml`. With two replicas only `cache-1` is replaced by a changed template; `cache-0` keeps the old
+one. The fix then changes the limit, and the rollout evaluator calls the partitioned update complete when the pods
+above the partition run the new revision. ADR-0030 keeps that (`RolledOut` True, reason `RolloutPartitioned`, naming
+the pod on the old revision) but does not accept it as evidence: every desired replica must run the applied revision,
+so the window cannot complete (`PartialRollout`) and the request ends `Inconclusive` at the timeout. If the partition is
+lowered to 0 by a later commit inside the timeout, the window can still complete. Not checked: that the source mapping
+accepts the extra field in the plain manifest (it should, as it is a literal value) and what `statefulset-oom` shows
+once its merge is observed; that run stopped at the merge.
+
+### Row 10: a revert request (new, planned)
+
+Row 3 is the cheapest source of a `Failed` request, and the only one whose revert applies cleanly: the failed merge
+commit sits at the head of the branch and blocks every later commit, and the revert goes back to 48Mi, which the
+admission rule accepts. After the request ends `Failed` with `DeliveryFailed`, the analyzer creates a revert request in
+deterministic code, with no model call: the same Incident and target, `previous` and `desired` swapped,
+`approvalRequired: true` and a link to the failed request, named from the failed request's UID so that a repeat finds
+the same one. It goes through the policy check, the freshness check and the target lock like any request, and opens a
+pull request that needs a person's approval. Once that is merged, rolled out and configured for `stableFor`, the revert
+ends `Inconclusive` with `RevertApplied`, never `Succeeded`. The Incident stays escalated. Two cases to check
+beside it: a revert of a revert is never created, and an `Inconclusive` request never gets one.
+
+Open: a revert of a memory increase is a decrease, and policies refuse decreases by default (`maxDecreasePercent` 0).
+Without a policy rule for reverts the revert ends `Denied` with `DecreaseNotAllowed`. #96 decides that rule, so the
+expected outcome of this row depends on it.
 
 ## Planned groups
 
