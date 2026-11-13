@@ -1,0 +1,32 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: keda-ceiling-persists
+summary: The worker's ScaledObject has maxReplicaCount 2 while a heavier steady load makes its trigger ask for 5 replicas, so the HPA is at its ceiling and still is after the ceiling is raised to 3.
+incident:
+  reason: ReplicaCeiling
+  status: planned   # the same symptom source as keda-at-ceiling (observed there on 2026-11-08); not run with this load yet
+  source: The KEDA module's HorizontalPodAutoscaler symptom source (ScalingLimited=True with reason TooManyReplicas, internal/modules/keda/symptoms.go in pkalin/shadewright), as in keda-at-ceiling.
+  object:
+    apiVersion: keda.sh/v1alpha1
+    kind: ScaledObject
+    namespace: demo
+    name: worker
+diagnosis:
+  status: planned
+  evidence:
+    - fact: the HPA runs at its maximum, ScalingLimited is True with reason TooManyReplicas, and spec.maxReplicas and status.currentReplicas are both 2
+      source: the KEDA module's ReplicaCeiling symptom evidence
+    - fact: the owning ScaledObject is worker
+      source: the ReplicaCeiling symptom evidence (the HPA's controller owner reference)
+    - fact: the backlog, the current external metric value (about 25 requests per second) against its target (5 per replica), which is 5 replicas wanted
+      source: the ReplicaCeiling symptom evidence (status.currentMetrics and spec.metrics of the HPA); planned
+outcome:
+  type: pull-request
+  status: planned
+  note: The same pull request as keda-at-ceiling (maxReplicaCount 2 to 3), within the demo-keda policy, which allows no more than 3. What this scenario tests is what comes after the merge, not the pull request. After the rollout the HPA is still at its ceiling of 3 (5 replicas wanted). A KEDA request has no pod to read the symptom from, so in v0.5.0 Cleared stays Unknown with reason ClearingNotChecked and the request is expected to end Inconclusive, never Succeeded and not Failed on the symptom (scenarios/MATRIX.md, row 8). Planned, not run.
+  action: AdjustKedaMaxReplicas
+  bounds:
+    min: 2
+    max: 3
+  paths:
+    - apps/demo/worker-scaledobject.yaml
