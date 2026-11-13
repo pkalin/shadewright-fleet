@@ -1,0 +1,30 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: delivery-blocked
+summary: The oom scenario plus an admission policy that refuses a web memory limit above 60Mi, so the merged fix cannot be applied by Flux.
+incident:
+  reason: OOMKilled
+  status: planned
+  source: The same symptom as the oom scenario (the web container is OOMKilled at 48Mi), read from the container status by the collector. Observed for oom on the lab (see scenarios/oom); not run for this scenario on a lab. On Kind the policy was checked by hand (see the README).
+  object:
+    apiVersion: apps/v1
+    kind: Deployment
+    namespace: demo
+    name: web
+diagnosis:
+  status: planned
+  evidence:
+    - fact: OOMKilled from the container status (last state), not from an event reason
+      source: the Incident reason, and the pod's lastState.terminated.reason
+    - fact: the memory working set from Prometheus (container_memory_working_set_bytes) near the 48Mi limit
+      source: a Prometheus query through the MetricsSource interface (planned, not wired into the analyzer yet)
+outcome:
+  type: pull-request
+  status: planned
+  note: The pull request is the one of the oom scenario (48Mi to 64Mi). After the merge Flux cannot apply it, because the policy refuses the 64Mi limit, so the Kustomization apps turns Ready=False and the request waits for a delivery that does not come (MATRIX.md, row 3). Not run end to end.
+  action: SetContainerMemoryLimit
+  bounds:
+    min: 64Mi
+    max: 128Mi
+  paths:
+    - apps/demo/web-deployment.yaml

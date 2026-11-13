@@ -1,0 +1,30 @@
+# SCENARIO delivery-blocked (scenarios/delivery-blocked): refuses a web Deployment whose container memory limit is
+# above 60Mi. The oom file's 48Mi passes; the 64Mi a fix proposes is refused when Flux applies the merge, so the
+# Kustomization turns Ready=False with the admission message. Bound by web-memory-limit-policy-binding.yaml.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: web-memory-limit
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - apps
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - deployments
+  matchConditions:
+    - name: only-web
+      expression: object.metadata.name == 'web'
+  validations:
+    - expression: >-
+        object.spec.template.spec.containers.all(c,
+        !has(c.resources) || !has(c.resources.limits) || !('memory' in c.resources.limits) ||
+        quantity(c.resources.limits['memory']).compareTo(quantity('60Mi')) <= 0)
+      message: the web memory limit must not be above 60Mi (scenario delivery-blocked)
+      reason: Invalid
