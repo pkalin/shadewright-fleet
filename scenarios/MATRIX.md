@@ -33,7 +33,7 @@ Where it runs:
 | 4 | Applied, but the pods keep the old value | `rollout-blocked`: the `oom` files plus a `LimitRange` whose container `max` memory is 56Mi (see below) | not `Succeeded`; the final phase is to be named by the design of #248 | condition `RolledOut=False`, reason `RolloutStuck` (set today 10 minutes after the revision was applied) | Lab | new scenario needed |
 | 5 | The incident stops before the pull request merges | `keda-load-burst`: `keda-at-ceiling` with a load that ends by itself after a few minutes; leave the pull request unmerged (see below) | `Cancelled` | to be named by the design of #248 (the reasons of `Cancelled` today are the hand-off ones) | Lab | new scenario needed |
 | 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | `NeedsIntervention`, and no second pull request ([shadewright#643](https://github.com/pkalin/shadewright/issues/643)) | `ChangeRequestClosed` | Lab | exists (`oom`); the "no second pull request" half fails until #643 is fixed |
-| 7 | Data missing during the window | no scenario: after the merge, take Prometheus away by hand (see below) | to be named by the design of #248 (not `Succeeded`, not `Failed`) | to be named by the design of #248; for the rollout side `RolloutNotDetermined` exists | Lab | new scenario needed (a documented manual step) |
+| 7 | Data missing during the window | no scenario: after the merge, delete the target by hand while `apps` is suspended (see below) | to be named by the design of #248 (not `Succeeded`, not `Failed`) | to be named by the design of #248; for the rollout side `RolloutNotDetermined` exists | Lab | new scenario needed (a documented manual step) |
 | 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Failed` | to be named by the design of #248 | Lab | new scenario needed |
 
 Rows 1 and 6 use `oom` unchanged. Row 6 is also the case the `statefulset-oom` and `keda-at-ceiling` scenarios would
@@ -115,11 +115,11 @@ load has ended before looking. What the request does then is the point of the ro
 
 ### Row 7: data missing
 
-No file under `apps/demo/` controls Prometheus (it is installed by `infrastructure/prometheus/`), so a scenario cannot
-remove the data. The row is a procedure: after the merge, scale `prometheus-server` to zero (with `infrastructure`
-suspended in Flux, so it is not put back), wait through the window, then resume. The expectation is that missing or
-stale metrics never end in `Succeeded` (#248). Note that `NoNewOOMKills` reads kube-state-metrics, also in the
-`prometheus` namespace, so the same step takes both away.
+In v0.5.0 "cleared" is read from container status on a workload that still exists with the same UID
+(decision of 2026-11-13 in #248); the executor has no metrics source. So the data goes missing when the target
+does. The row is a procedure, not a scenario: after the merge and the rollout, suspend the `apps` Kustomization
+and delete the `web` Deployment (or delete and recreate it, which gives a new UID), wait through the window, then
+resume. The expectation is that a target that is gone or was recreated never ends in `Succeeded`.
 
 ### Row 8: still at the ceiling
 
@@ -159,7 +159,7 @@ The cluster is applied for a session and destroyed after it; `make lab-check` li
 | Application | Delivered as | Documented failures | Resource needs | Source |
 | --- | --- | --- | --- | --- |
 | OpenTelemetry demo (`open-telemetry/opentelemetry-demo`) | a Helm chart; the documentation also shows `helm template ... > opentelemetry-demo.yaml` | feature flags in `src/flagd/demo.flagd.json`, among them `emailMemoryLeak` (variants `1x` to `10000x` and `off`), `failedReadinessProbe` (cart service), `cartFailure` (`10%` to `100%`), `adHighCpu` and `cartMetricCardinalityOverflow` | 6 GB of free RAM for the application | the repository above for the flags; `content/en/docs/demo/kubernetes-deployment.md` in `open-telemetry/opentelemetry.io` for the RAM and the `helm template` command |
-| Online Boutique (`GoogleCloudPlatform/microservices-demo`) | plain manifests: `kubernetes-manifests/` and `release/kubernetes-manifests.yaml` (12 Deployments), also a `helm-chart/` | none documented as switches | per service in the manifests, for example `cartservice` requests 64Mi and limits 128Mi, and its Redis requests 200Mi and limits 256Mi (`kubernetes-manifests/cartservice.yaml`); I found no documented total in its `README.md` | the manifests above |
+| Online Boutique (`GoogleCloudPlatform/microservices-demo`) | plain manifests: `kubernetes-manifests/` and `release/kubernetes-manifests.yaml` (12 Deployments), also a `helm-chart/` | none documented as switches | per service in the manifests, for example `cartservice` requests 64Mi and limits 128Mi, and its Redis requests 200Mi and limits 256Mi (`kubernetes-manifests/cartservice.yaml`); its `README.md` gives no total | the manifests above |
 
 Not verified: how the flags are switched in the chart-based install (the flagd ConfigMap lives in the chart
 repository, `open-telemetry/opentelemetry-helm-charts`, which was not read); the total memory of Online Boutique.
