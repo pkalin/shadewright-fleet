@@ -172,6 +172,11 @@ HelmRelease in `infrastructure/shadewright/`). Every scenario except `invalid-ma
 fails in `flux-system` (the Kustomization `apps`), which is not watched, so it produces no Incident until
 `flux-system` is added there, with a RoleBinding. That widens what the analyzer reads and is a separate decision.
 
+## Scenario matrix
+
+[MATRIX.md](MATRIX.md) lists the verification rows planned for v0.5.0: each row's setup, expected phase and reason, where it
+runs and whether its scenario exists, plus the design of a second cluster.
+
 ## Evidence matrix
 
 What each layer proves today. A cell without a link has no evidence yet.
