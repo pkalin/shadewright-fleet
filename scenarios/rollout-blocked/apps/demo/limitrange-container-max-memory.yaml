@@ -1,0 +1,13 @@
+# SCENARIO rollout-blocked (scenarios/rollout-blocked): a container in demo may not have a memory limit above 56Mi.
+# The Deployment still applies, but its new ReplicaSet cannot create a pod with the 64Mi a fix proposes, so the old pod
+# stays. worker and cache have 64Mi limits: a pod of theirs that is recreated while the scenario is on is refused too.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: container-max-memory
+  namespace: demo
+spec:
+  limits:
+    - type: Container
+      max:
+        memory: 56Mi

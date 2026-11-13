@@ -1,0 +1,21 @@
+# Demo workloads. Only apiVersion, kind and resources, one object per file: the operator's source mapping
+# (ADR-0012) supports plain manifests only. The demo Namespace is in infrastructure/namespaces/.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cache-service.yaml
+  - cache-serviceaccount.yaml
+  - cache-statefulset.yaml
+  - networkpolicy-allow-dns.yaml
+  - networkpolicy-allow-http-in-namespace.yaml
+  - networkpolicy-allow-prometheus-scrape.yaml
+  - networkpolicy-default-deny.yaml
+  - web-deployment.yaml
+  - web-memory-limit-policy-binding.yaml
+  - web-memory-limit-policy.yaml
+  - web-service.yaml
+  - web-serviceaccount.yaml
+  - worker-deployment.yaml
+  - worker-scaledobject.yaml
+  - worker-service.yaml
+  - worker-serviceaccount.yaml

@@ -16,9 +16,10 @@ until the design of [shadewright#248](https://github.com/pkalin/shadewright/issu
 
 The other names on this page (the phase `Inconclusive`, the reasons `OOMKilled`, `DeliveryFailed`, `TargetGone`,
 `TargetReplaced`, `ClearingNotChecked`, `RevertApplied` and the rest, and the conditions `Configured` and `Cleared`)
-come from [ADR-0030](https://github.com/pkalin/shadewright/blob/248-verification-design/docs/adr/0030-merge-receipt-and-verification-outcomes.md)
-as proposed in [pull request 673](https://github.com/pkalin/shadewright/pull/673). It is not accepted yet: these names
-change with it, and this page is corrected in the same step. None of them exist in the operator today.
+come from [ADR-0030](https://github.com/pkalin/shadewright/blob/main/docs/adr/0030-merge-receipt-and-verification-outcomes.md),
+accepted and merged on 2026-11-13. The names do not exist in the operator's code yet: they arrive with the build tasks
+[#678](https://github.com/pkalin/shadewright/issues/678) to [#684](https://github.com/pkalin/shadewright/issues/684),
+so until those land every row that names one is what the ADR requires, not what the operator does.
 
 Where it runs:
 
@@ -33,19 +34,19 @@ Where it runs:
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Limit too low, raised within policy | `make scenario-oom CLUSTER=lab`; merge the pull request (48Mi to 64Mi, inside the `demo-memory` bounds of 64Mi to 128Mi) | `Succeeded` after `Merged`, `WaitingForDelivery` and `Verifying`, once rolled out, configured and a quiet window of at least 10 minutes plus the node grace held (the memory minimum for `stableFor`) | condition `Verified=True`, `Cleared=True` with reason `NoRecurrence` | Lab | exists (`oom`); the outcome needs ADR-0030 built |
 | 2 | Leak: the limit is raised, the kill returns later | `oom-leak`: `web` with a memory-backed volume that a load Deployment fills at a steady rate (see below) | `Failed`, at once when the kill is seen after the rollout | `OOMKilled`; the revert is row 10 | Lab (second cluster as an alternative) | new scenario needed |
-| 3 | Merged, but the Kustomization fails to apply | `delivery-blocked`: the `oom` files plus a `ValidatingAdmissionPolicy` and its binding that refuse a `web` memory limit above 60Mi (see below) | `Merged`, then `WaitingForDelivery`, then `Failed` at the end of the delivery window (one hour after the merge) | `DeliveryFailed`, because Flux failed on exactly the merge commit; the condition `RolledOut=False` with `DeliveryNotObserved` is what the code sets today | Lab | new scenario needed |
-| 4 | Applied, but the pods keep the old value | `rollout-blocked`: the `oom` files plus a `LimitRange` whose container `max` memory is 56Mi (see below) | `Failed` at the timeout (21 minutes from the applied revision with the defaults), never `Succeeded` | `RolloutStuck`, because `RolledOut` is False (set today 10 minutes after the revision was applied) | Lab | new scenario needed |
+| 3 | Merged, but the Kustomization fails to apply | `delivery-blocked`: the `oom` files plus a `ValidatingAdmissionPolicy` and its binding that refuse a `web` memory limit above 60Mi (see below) | `Merged`, then `WaitingForDelivery`, then `Failed` at the end of the delivery window (one hour after the merge) | `DeliveryFailed`, because Flux failed on exactly the merge commit; the condition `RolledOut=False` with `DeliveryNotObserved` is what the code sets today | Lab | exists (`delivery-blocked`); the admission refusal was checked by hand on Kind, not through Flux or the agent |
+| 4 | Applied, but the pods keep the old value | `rollout-blocked`: the `oom` files plus a `LimitRange` whose container `max` memory is 56Mi (see below) | `Failed` at the timeout (21 minutes from the applied revision with the defaults), never `Succeeded` | `RolloutStuck`, because `RolledOut` is False (set today 10 minutes after the revision was applied) | Lab | exists (`rollout-blocked`); the LimitRange refusal was checked by hand on Kind, not through Flux or the agent |
 | 5 | The incident stops before the pull request merges | `keda-load-burst`: `keda-at-ceiling` with a load that ends by itself after a few minutes; leave the pull request unmerged (see below) | open: ADR-0030 gives no phase for it | open | Lab | new scenario needed; the outcome is not decided |
-| 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | `NeedsIntervention`, today and under ADR-0030 (decided 2026-11-13: a person rejecting a proposal is a signal the circuit breaker counts as a failure). No second pull request ([shadewright#643](https://github.com/pkalin/shadewright/issues/643)) | `ChangeRequestClosed` | Lab | exists (`oom`); the "no second pull request" half fails until #643 is fixed |
+| 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | `NeedsIntervention`, today and under ADR-0030 (decided 2026-11-13: a person rejecting a proposal is a signal the circuit breaker counts as a failure). No second pull request ([shadewright#643](https://github.com/pkalin/shadewright/issues/643), fixed in #674) | `ChangeRequestClosed` | Lab | exists (`oom`); the "no second pull request" half was fixed in [#674](https://github.com/pkalin/shadewright/pull/674) (merged 2026-11-13, not released yet), so it holds from the next release after v0.4.0 |
 | 7 | Data missing during the window | no scenario: two procedures, a deleted or recreated target, and a stopped verifier (see below) | `Inconclusive` in both, never `Succeeded` and never `Failed` | `TargetGone` or `TargetReplaced` at once; `StaleReport` at the timeout when the verifier is stopped | Lab | new scenario needed (documented manual steps) |
 | 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Inconclusive` once rolled out and configured held for `stableFor` (3 minutes); never `Succeeded`, and not `Failed` on the symptom | `ClearingNotChecked` | Lab | new scenario needed |
-| 9 | Partitioned StatefulSet rollout | `statefulset-partition`: the `statefulset-oom` files with `updateStrategy.rollingUpdate.partition: 1` on `cache`, so only `cache-1` can take the new limit (see below) | not `Succeeded`: `Inconclusive` at the timeout, unless the partition is lowered inside it | `PartialRollout`; `RolledOut` is True with its own reason `RolloutPartitioned` naming the pod left on the old revision | Lab | new and planned |
+| 9 | Partitioned StatefulSet rollout | `statefulset-partition`: the `statefulset-oom` files with `updateStrategy.rollingUpdate.partition: 1` on `cache`, so only `cache-1` can take the new limit (see below) | not `Succeeded`: `Inconclusive` at the timeout, unless the partition is lowered inside it | `PartialRollout`; `RolledOut` is True with its own reason `RolloutPartitioned` naming the pod left on the old revision | Lab | exists (`statefulset-partition`); the partition was checked by hand on Kind, not through Flux or the agent; the outcome needs ADR-0030 built |
 | 10 | Revert after a failed verification | the request of row 3 ends `Failed`; the analyzer then creates a revert request (see below) | a new pull request that needs approval; once merged, rolled out, configured and available for `stableFor`: `Inconclusive` | `RevertApplied` | Lab | new and planned |
 
 Rows 1 and 6 use `oom` unchanged. Row 6 is also the case the `statefulset-oom` and `keda-at-ceiling` scenarios would
 give; one is enough. Row 1 for KEDA is not a `Succeeded` row: merging the pull request of `keda-at-ceiling` ends
-`Inconclusive` with `ClearingNotChecked` (see row 8). Rows 3 and 4 also need the scenario to render: the harness checks that with
-`make check-scenarios`, and the new objects must be plain manifests with one object per file (ADR-0012).
+`Inconclusive` with `ClearingNotChecked` (see row 8). The scenarios of rows 3, 4 and 9 render: the harness checks that with
+`make check-scenarios`, and the new objects are plain manifests with one object per file (ADR-0012).
 
 ## New scenarios, row by row
 
@@ -54,8 +55,9 @@ The demo app is podinfo 6.17.0 (`apps/demo/web-deployment.yaml`). Its flags and 
 `--unready`, `--unhealthy`, `--random-error`, `--random-delay`, `--data-path`), `pkg/api/http/store.go` (`POST /store`
 writes the posted body to `--data-path`, default `/data`, one file per distinct body) and `pkg/api/http/panic.go`
 (`GET /panic` exits with code 255). The README of the same repository lists `POST /fault_injection/enable`, which makes
-the app answer 500 to application requests while probes stay healthy. Nothing below was run; each scenario needs a Kind
-run to tune its numbers before it is merged.
+the app answer 500 to application requests while probes stay healthy. Rows 3, 4 and 9 have scenarios, and each was
+applied by hand to a Kind cluster (below). The other rows were not run: each of their scenarios needs a Kind run to
+tune its numbers before it is merged.
 
 ### Row 2: a leak
 
@@ -84,11 +86,13 @@ repo requires). The `demo-memory` policy already covers any `apps/demo/*-deploym
 The pre-merge policy check refuses a Kustomization that is not Ready (`KustomizationNotReady`), and the render check
 refuses a change that does not render, so the failure must come from the cluster, not from the file. The smallest way is
 an admission rule that the old value passes and the new one does not. A `ValidatingAdmissionPolicy` and a
-`ValidatingAdmissionPolicyBinding` (Kubernetes 1.30 and later), as two plain files in `apps/demo/` listed in the
+`ValidatingAdmissionPolicyBinding` (Kubernetes 1.30 and later), as two plain files in `apps/demo/` (`web-memory-limit-policy.yaml` and `web-memory-limit-policy-binding.yaml`) listed in the
 scenario's `kustomization.yaml`, reject a Deployment in `demo` whose container memory limit is above 60Mi. The `oom`
 file starts at 48Mi, so the scenario applies. The agent's 64Mi is refused when Flux applies the merge: `apps` turns
-`Ready=False` with the admission message, and the request waits for a delivery that never comes. Check on Kind that
-the dry-run of the first apply passes and that Flux reports the second as a failure.
+`Ready=False` with the admission message, and the request waits for a delivery that never comes. Run on Kind
+(applied with `kubectl`, not through Flux, 2026-11-13): the first apply of `web` at 48Mi passed, and a server-side dry run
+and a real apply at 64Mi were refused with the policy's message, while 60Mi passed a dry run. Not checked: that Flux
+reports the refused apply as a failure of `apps`.
 
 The timeout is long (an hour from the merge, as the code stands), so run this row last in a session. ADR-0030 ends
 the wait `Failed` with `DeliveryFailed` only when Flux failed on exactly the merge commit. Do not push another commit
@@ -113,6 +117,10 @@ a separate refusal row, not this one. What the row needs is a change that Flux a
 
 With a `LimitRange` the request is `Failed` with `RolloutStuck` at the timeout, so it also leads to a revert request
 (ADR-0030, section 8), as row 3 does.
+
+Run on Kind (applied with `kubectl`, 2026-11-13): after the 64Mi Deployment was applied, its new ReplicaSet stayed at 0
+of 1 pods with `ReplicaFailure` (`maximum memory usage per Container is 56Mi, but limit is 64Mi`) and the old pod
+stayed on its old template. Not checked: the same through Flux and the request's phase.
 
 A paused Deployment (`spec.paused: true`) gives the same end state but cannot be a scenario file: it would also stop the
 broken template of `oom` from rolling out, so no symptom would appear first.
@@ -159,7 +167,7 @@ ends `Inconclusive`. A KEDA request cannot end `Succeeded` or `Failed` on its sy
 that names the check `QueueBacklogDecreasing` ends `Inconclusive` with `CheckNotAvailable`. So the row shows that the
 persistent ceiling is not reported as success, not that it is caught.
 
-### Row 9: a partitioned StatefulSet (new, planned)
+### Row 9: a partitioned StatefulSet
 
 `statefulset-partition` is `statefulset-oom` with `partition: 1` under `updateStrategy.rollingUpdate` in
 `cache-statefulset.yaml`. With two replicas only `cache-1` is replaced by a changed template; `cache-0` keeps the old
@@ -167,9 +175,14 @@ one. The fix then changes the limit, and the rollout evaluator calls the partiti
 above the partition run the new revision. ADR-0030 keeps that (`RolledOut` True, reason `RolloutPartitioned`, naming
 the pod on the old revision) but does not accept it as evidence: every desired replica must run the applied revision,
 so the window cannot complete (`PartialRollout`) and the request ends `Inconclusive` at the timeout. If the partition is
-lowered to 0 by a later commit inside the timeout, the window can still complete. Not checked: that the source mapping
-accepts the extra field in the plain manifest (it should, as it is a literal value) and what `statefulset-oom` shows
-once its merge is observed; that run stopped at the merge.
+lowered to 0 by a later commit inside the timeout, the window can still complete.
+
+Run on Kind (applied with `kubectl`, 2026-11-13): over a healthy `cache`, a template with a lower limit reached only
+`cache-1` (it was `OOMKilled`), and `cache-0` stayed on the old revision. A later change to 72Mi, with `cache-1`
+deleted by hand (the forced rollback in the `statefulset-oom` README), gave a Ready `cache-1` on a new revision while
+`cache-0` stayed on the old one. Not checked: that the source mapping accepts the extra field in the plain manifest (it
+should, as it is a literal value), the operator's rollout evaluator, and what `statefulset-oom` shows once its merge is
+observed; that run stopped at the merge.
 
 ### Row 10: a revert request (new, planned)
 
