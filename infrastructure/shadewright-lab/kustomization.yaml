@@ -10,11 +10,16 @@
 #   MODEL_ENDPOINT_SUFFIX  "." plus the host of foundation output model_endpoint                  analyzer.analysis.endpointSuffixes
 #
 # Analysis (evaluation run only, not production; operator docs/lab-oom-acceptance.md, "Evaluation run"): triageModel
-# is the model of the foundation deployment "triage" as its replies name it (<name>-<version>, from
-# foundation/terraform.tfvars.example). endpointSuffixes lists the lab's own AI Services account host only, so no other
-# resource receives the context or a token. No escalationModel: the CRD refuses triage and escalation on the same
-# deployment, and the lab has one, so read tools (offered only to the escalation model) are off and an escalation
-# signal hands the Incident off, until a second foundation deployment (operator issue #80).
+# is claude-haiku-5-5, the model ID as the Anthropic API names it, called through the Anthropic API (provider
+# Anthropic in the RemediationSettings, operator ADR-0037). anthropic.apiKey.secretName names a Secret in
+# shadewright-system with the key under the key "api-key" (the chart default secretKey). The Secret is created outside
+# Git: shadewright-azure's `make lab-up` creates it when LAB_ANTHROPIC_KEY_FILE is set. No key is in Git. The chart
+# mounts the Secret into the analyzer container only, and the volume is not optional: without the Secret the analyzer
+# pod stays in ContainerCreating (FailedMount) and the analysis does not start; the executor is not affected.
+# endpointSuffixes still lists the lab's own AI Services account host: the flag is required with triageModel, although
+# the allow-list does not apply to provider Anthropic (the endpoint is fixed to https://api.anthropic.com).
+# No escalationModel: the lab has a single triage model, so read tools (offered only to the escalation model) are off
+# and an escalation signal hands the Incident off (operator issue #80).
 # prometheus.url is the lab Prometheus (infrastructure/prometheus, Service port 80) as the analyzer's metrics source;
 # without it the context has no metrics and an OOM Incident is handed off with MissingData. networkPolicy.analyzer.
 # prometheus opens the analyzer's egress to that server (container port 9090), and the ingress side is the policy
@@ -50,7 +55,10 @@ patches:
             prometheus:
               url: http://prometheus-server.prometheus.svc
             analysis:
-              triageModel: gpt-5.4-mini-2026-03-17
+              triageModel: claude-haiku-5-5
+              anthropic:
+                apiKey:
+                  secretName: shadewright-anthropic
               endpointSuffixes:
                 - "${MODEL_ENDPOINT_SUFFIX}"
               actionPolicies:
