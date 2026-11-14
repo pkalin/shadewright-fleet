@@ -373,6 +373,20 @@ git rm -rq scenarios/says-fails scenarios/undeclared
 git commit -q -m "drop the render mismatches"
 run scripts/scenario.sh check --render
 expect_ok "check --render passes when every render matches its declaration"
+# A cluster branch with a scenario on already holds that scenario's added file. Checked over its own tree, a scenario
+# that does not list the file fails; over main's tree (CHECK_BASE) it passes.
+git checkout -q -b oom-on
+printf 'kind: Deployment\nmetadata:\n  name: load\n' >apps/demo/load.yaml
+printf 'resources:\n  - web.yaml\n  - worker.yaml\n  - load.yaml\n' >apps/demo/kustomization.yaml
+git add -A && git commit -q -m "scenario on"
+run scripts/scenario.sh check --render
+expect_fail "check over a tree with another scenario on fails" "does not list load.yaml, which apps/demo/kustomization.yaml on the base commit lists"
+run env CHECK_BASE="$MAIN0" scripts/scenario.sh check --render
+expect_ok "CHECK_BASE lays the scenarios over main's tree, not the scenario branch's" "== scenarios/new-listed"
+run env CHECK_BASE=no-such-ref scripts/scenario.sh check
+expect_fail "an unknown CHECK_BASE is an error" "CHECK_BASE no-such-ref is not a commit"
+git checkout -q main
+git branch -q -D oom-on
 printf 'kind: Deployment\nshadewright-test: invalid\n' >apps/demo/web.yaml
 run scripts/scenario.sh check --render
 expect_ok "check renders the committed tree, not the working tree" "uncommitted changes under scenarios/ or apps/ are not checked"
