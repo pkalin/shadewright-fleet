@@ -3,7 +3,9 @@
 # limit, SetContainerMemoryLimit), so keep every value literal: no patches or generators (ADR-0012).
 # Image: https://github.com/stefanprodan/podinfo (6.17.0, multi-arch index digest on ghcr.io); the image's
 # user "app" is uid 100, gid 101.
-# SCENARIO oom (scenarios/oom): podinfo loads 36 MB into memory (the load; it needs the writable /tmp volume below, the root filesystem is read-only), and the limit is 48Mi, below what the container holds (about 54Mi).
+# SCENARIO oom-leak (scenarios/oom-leak): the data volume is memory-backed (tmpfs, charged to the container's memory cgroup) and
+# its sizeLimit is above the container limit, so the loadgen Deployment's posts to /store fill the memory limit at a steady rate and the
+# container is killed once the limit is reached. The limit stays 64Mi here; a pull request raises it and the kill returns later.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,7 +46,6 @@ spec:
             - --port=9898
             - --port-metrics=9797
             - --level=info
-            - --stress-memory=36
           env:
             - name: PODINFO_UI_MESSAGE
               value: shadewright demo web
@@ -81,12 +82,8 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-            - name: tmp
-              mountPath: /tmp
       volumes:
         - name: data
           emptyDir:
-            sizeLimit: 16Mi
-        - name: tmp
-          emptyDir:
-            sizeLimit: 16Mi
+            medium: Memory
+            sizeLimit: 128Mi
