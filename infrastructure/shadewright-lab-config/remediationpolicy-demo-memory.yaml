@@ -1,6 +1,12 @@
 # The lab's demo-memory policy (operator config/samples/lab at v0.3.0-rc.5), named by infrastructure/shadewright-lab's
 # actionPolicies. Allows raising the memory limit of containers in the demo namespace to between 64Mi and 128Mi, in
-# steps of at most 50%, in the demo Deployments and StatefulSets only; decreases are refused and a person approves every pull request.
+# steps of at most 50%, in the demo Deployments and StatefulSets only, and lowering it by at most 34%; a person approves
+# every pull request.
+# maxDecreasePercent is 34 because the revert of a failed request is a decrease (outcome verification, scenarios/MATRIX.md
+# row 10). The policy check tests min before the decrease (operator internal/policy/decide.go, checkBounds), so a revert
+# to 48Mi (the oom and delivery-blocked scenarios start there) ends Denied with BelowMinimum whatever the percent is. The
+# revert path is exercised from oom-leak: 64Mi raised to 96Mi (50%), reverted to 64Mi, a decrease of 33.3%, inside 34
+# and not below min.
 # The bounds are the OOM scenario's (scenarios/oom/expected.yaml). To see an open request go Superseded (operator
 # docs/lab-oom-acceptance.md, step 9), change the bounds in a commit on cluster/lab.
 apiVersion: remediation.shadewright.io/v1alpha1
@@ -17,7 +23,7 @@ spec:
         min: 64Mi
         max: 128Mi
         maxIncreasePercent: 50
-        maxDecreasePercent: 0
+        maxDecreasePercent: 34
   gitOps:
     repositoryRef: fleet
     allowedPaths:
