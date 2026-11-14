@@ -19,22 +19,22 @@ HPA is capped at 2, then at 3 after the fix.
 The field that is broken is the one the action patches, so a reset changes it back to `3` and an open request becomes
 `Superseded`. The load generator has the hardening of the worker, as in `keda-at-ceiling`.
 
-## Not run
+## Run on the lab (2026-11-14)
 
-Nothing here has run on a cluster. `kustomize build` and `make check-scenarios` pass, and the request rate was not
-measured: KEDA and Prometheus were not installed on Kind for this scenario. Before relying on it, run it on Kind or on
-the lab and check with `kubectl -n demo describe hpa keda-hpa-worker` that the desired replica count is 5 (about 25
-requests per second against a target of 5), and tune `sleep 0.03` if it is not. At a polling interval of 30 s, a
-scrape interval of 15 s and a 1 minute rate window the HPA needs a few minutes to show it.
+It ran on the lab with chart `0.5.0-rc.1` (row 8 of the matrix, [#78](https://github.com/pkalin/shadewright-fleet/pull/78)).
+After the fix the HPA showed about 6.1 per replica against a target of 5 at 2 of 2 replicas, so the load asks for more
+than the ceiling, as intended. The exact request rate was still not measured, and the 5 desired replicas were not
+read from the HPA. Not run on Kind: KEDA and Prometheus were not installed there for this scenario.
 
-## Expected outcome (planned)
+## Expected outcome
 
 A pull request with `AdjustKedaMaxReplicas` from 2 to 3 changing only `spec.maxReplicaCount` in
 `apps/demo/worker-scaledobject.yaml`, as in `keda-at-ceiling`. After it is merged and rolled out, the HPA is at 3 of 3
 with `ScalingLimited` still True. A ScaledObject has no pods of its own, and the symptom is not in container status,
-so in v0.5.0 the `Cleared` condition stays `Unknown` with reason `ClearingNotChecked`. Once rolled out and configured
-held for `stableFor`, the request is expected to end `Inconclusive`, not `Succeeded` and not `Failed` on the symptom
-(`scenarios/MATRIX.md`, row 8). Those names come from a proposed ADR and are not in the operator yet.
+so in v0.5.0 the `Cleared` and `Verified` conditions stay `Unknown` with reason `CheckNotAvailable` (the check
+`QueueBacklogDecreasing` needs metrics that no evidence source reads yet) and `RolledOut` is `Unknown` with
+`KindNotChecked`. Observed on 2026-11-14: the request ended `Inconclusive` at 15:42:36, 4 minutes after the merge at
+15:38:37 (`Verifying` at 15:39:32), not `Succeeded` and not `Failed` on the symptom (`scenarios/MATRIX.md`, row 8).
 
 ## Restricted profile
 

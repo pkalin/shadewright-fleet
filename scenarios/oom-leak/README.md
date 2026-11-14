@@ -60,12 +60,14 @@ that the second kill still comes later than a delivery wait of a few minutes and
 `OOMKilled` from the container status, the working set growing in a straight line (Prometheus through `MetricsSource`,
 not wired into the analyzer yet), and that the data volume is memory-backed. See `expected.yaml`.
 
-## Expected outcome (planned)
+## Expected outcome
 
 A pull request with `SetContainerMemoryLimit` on container `web`, within the `demo-memory` policy (at most +50% per
 step: 64Mi to 96Mi). After the merge and the rollout the kill returns about 6 minutes after the new pod starts, so
-the request is expected to end `Failed` once the kill is seen after the rollout (matrix row 2; the names come from a
-proposed ADR and are not in the operator yet). The revert is row 10. Not run with an agent.
+the request ends `Failed` once the kill is seen after the rollout (matrix row 2). Observed on the lab (2026-11-14,
+chart `0.5.0-rc.1`): [#71](https://github.com/pkalin/shadewright-fleet/pull/71) merged at 13:46 and the request ended
+`Failed` with `OOMKilled` at 13:55:07. The revert is row 10: it ended `Inconclusive` with `NotAvailable`, because the
+leak kills the pod at the restored limit too.
 
 ## Restricted profile
 
