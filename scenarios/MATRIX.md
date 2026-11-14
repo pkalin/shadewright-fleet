@@ -38,7 +38,7 @@ Where it runs:
 | 7 | Data missing during the window | no scenario: two procedures, a deleted or recreated target, and a stopped verifier (see below) | `Inconclusive` in both, never `Succeeded` and never `Failed` | `TargetGone` or `TargetReplaced` at once; `StaleReport` at the timeout when the verifier is stopped | Lab | new scenario needed (documented manual steps) |
 | 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Inconclusive` once rolled out and configured held for `stableFor` (3 minutes); never `Succeeded`, and not `Failed` on the symptom | `ClearingNotChecked` | Lab | exists (`keda-ceiling-persists`); rendered only, not run; the rate and the 5 desired replicas are not measured, the outcome is planned |
 | 9 | Partitioned StatefulSet rollout | `statefulset-partition`: the `statefulset-oom` files with `updateStrategy.rollingUpdate.partition: 1` on `cache`, so only `cache-1` can take the new limit (see below) | not `Succeeded`: `Inconclusive` at the timeout, unless the partition is lowered inside it | `PartialRollout`; `RolledOut` is True with its own reason `RolloutPartitioned` naming the pod left on the old revision | Lab | exists (`statefulset-partition`); the partition was checked by hand on Kind, not through Flux or the agent; the outcome needs ADR-0030 built |
-| 10 | Revert after a failed verification (the leak: the limit is raised, the kill returns) | the request of row 2 (or of row 3) ends `Failed`; the analyzer then creates a revert request (see below) | the failed request: `Failed`. The revert request, with a policy that allows the decrease: a pull request that needs approval, then `Inconclusive` once merged, rolled out, configured and available for `stableFor`. With the default policy (`maxDecreasePercent` 0): `Denied`, and a person reverts by hand | failed request `OOMKilled` (row 2) or `DeliveryFailed` (row 3); revert `RevertApplied` with the allowing policy, `DecreaseNotAllowed` with the default | Lab | new and planned |
+| 10 | Revert after a failed verification (the leak: the limit is raised, the kill returns) | the request of row 2 ends `Failed`; the analyzer then creates a revert request (see below) | the failed request: `Failed`. The revert request, with a policy that allows the decrease: a pull request that needs approval, then `Inconclusive` once merged, rolled out, configured and available for `stableFor`. With the default policy (`maxDecreasePercent` 0): `Denied`, and a person reverts by hand | failed request `OOMKilled` (row 2); revert `RevertApplied` with the allowing policy, `DecreaseNotAllowed` with the default | Lab | new and planned |
 | 11 | A plan Shadewright knew was stale is merged by a person | `make scenario-oom CLUSTER=lab`; once the pull request is open, change the policy `demo-memory` (any change of its generation makes the plan stale), then merge the pull request before the executor closes it (the freshness check runs about every five minutes), or with a Git App that may not close pull requests (#199) | `Inconclusive`, never `Succeeded`. With verification on, a failure still ends `Failed` | `StalePlanMerged`; `PlanFresh` stays `False` with the stale reason (`PolicyChanged`) | Lab | new scenario needed; timing dependent; the circuit breaker counts it as no outcome |
 | 12 | The render of the build needs more than the limits | a Kustomization path whose build is over a limit of the render check (4 MiB of input, 4,096 YAML documents, 1,024 objects), the target's file inside it | `NeedsIntervention` | `TooLarge`: on `PolicyAllowed` (`Unknown`, no plan made) for input over the limits, on `PullRequestOpened` or `Approved` (`False`) for a render over 1,024 objects. A build that fits the input limits but needs more memory or CPU than the render's own bounds is refused the same way only after #614 (pull request 711, open on 2026-11-14) | Lab | after #614 for the resource-bound case; the input-limit case exists in the code today; new scenario needed |
 
@@ -200,9 +200,10 @@ observed; that run stopped at the merge.
 
 ### Row 10: a revert request (new, planned)
 
-Row 3 is the cheapest source of a `Failed` request, and the only one whose revert applies cleanly: the failed merge
-commit sits at the head of the branch and blocks every later commit, and the revert goes back to 48Mi, which the
-admission rule accepts. After the request ends `Failed` with `DeliveryFailed`, the analyzer creates a revert request in
+Row 2 (`oom-leak`) is the source of the revert that goes through under `demo-memory`: the limit goes from 64Mi to 96Mi
+(50%), the kill returns and the request ends `Failed` with `OOMKilled`. Row 3 also ends `Failed`, but its revert goes
+back to 48Mi, below the policy's `min` of 64Mi, so it ends `Denied` with `BelowMinimum` (the policy check tests `min`
+before the decrease, so no `maxDecreasePercent` changes that). After a request ends `Failed`, the analyzer creates a revert request in
 deterministic code, with no model call: the same Incident and target, `previous` and `desired` swapped,
 `approvalRequired: true` and a link to the failed request, named from the failed request's UID so that a repeat finds
 the same one. It goes through the policy check, the freshness check and the target lock like any request, and opens a
@@ -221,9 +222,11 @@ ends:
 - A policy that allows the decrease: the revert goes through approval and, once merged and held, ends `Inconclusive`
   with `RevertApplied`.
 
-Proposed for the lab run: set `maxDecreasePercent` on the policy of the demo app (`demo-memory`) so that the revert path
-is exercised, and make one run with the default to show the denial. The setting is a proposal until the maintainer
-decides the policy question.
+Proposed for the lab run: set `maxDecreasePercent: 34` on the policy of the demo app (`demo-memory`, `min` stays 64Mi)
+so that the revert path is exercised from row 2: 96Mi back to 64Mi is a decrease of 33.3%, inside 34 and not below
+`min`. Row 3's revert to 48Mi is denied `BelowMinimum` under that policy whatever the percent is. Make one run with the
+default to show the `DecreaseNotAllowed` denial. The setting is a proposal until the maintainer decides the policy
+question.
 
 ## Planned groups
 

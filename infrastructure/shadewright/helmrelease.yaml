@@ -10,6 +10,14 @@
 # watchNamespaces: demo only, as the vendored install's config/watch did. The chart binds the read-only watch
 # ClusterRole with one RoleBinding per listed namespace; demo is created by infrastructure/namespaces, which the
 # Kustomization "shadewright" waits for.
+#
+# executor.verification.enabled turns outcome verification on (operator ADR-0030): a merged request moves through
+# WaitingForDelivery and Verifying and ends Succeeded, Failed or Inconclusive, judged from the verifier's report. It
+# needs the verifier: with verification on and no verifier deployed, no report is written and every merge ends
+# Inconclusive or Failed.
+# verifier.watchNamespaces lists the namespaces whose pods and workloads the verifier reads, with a read-only
+# RoleBinding in each. The chart falls back to analyzer.watchNamespaces when it is null; it is set here so the
+# verifier's scope is readable in this file. An empty list deploys no verifier.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -32,5 +40,11 @@ spec:
   values:
     clusterId: lab
     analyzer:
+      watchNamespaces:
+        - demo
+    executor:
+      verification:
+        enabled: true
+    verifier:
       watchNamespaces:
         - demo
