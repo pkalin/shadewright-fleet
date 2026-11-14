@@ -20,7 +20,7 @@
 # prometheus opens the analyzer's egress to that server (container port 9090), and the ingress side is the policy
 # in infrastructure/prometheus/networkpolicy-server.yaml.
 # actionPolicies names the RemediationPolicies in infrastructure/shadewright-lab-config. The daily cap lives in the
-# RemediationSettings there (analysis.maxAnalysesPerDay, 10 for the lab), with the endpoint and deployment; the chart
+# RemediationSettings there (analysis.maxAnalysesPerDay, 40 for the lab), with the endpoint and deployment; the chart
 # has no value for it.
 # executor.reviewerHints.enabled turns reviewer hints on (operator ADR-0028, off by default) for the lab runbook
 # docs/lab-oom-hint.md. The cluster/* ruleset must require the check shadewright/review from the Shadewright App (README,

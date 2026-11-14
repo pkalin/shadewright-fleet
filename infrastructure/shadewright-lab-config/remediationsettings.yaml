@@ -28,13 +28,17 @@ spec:
           azureKeyVault:
             keyID: "${GITHUB_APP_KEY_ID}"
   analysis:
-    maxAnalysesPerDay: 10
+    # Lab values for a full-day run of the scenario matrix (twelve rows), not a recommendation. The run of 2026-11-14
+    # used 6 of 10 analyses on two scenarios, because one OOM opens three Incidents and each is analyzed (operator
+    # #432). About 3,500 tokens per analysis on gpt-5.4-mini: 40 analyses are about 140k tokens, well under the token
+    # cap below (800000, the old 200000 at the same ratio to the count).
+    maxAnalysesPerDay: 40
     models:
       triage:
         endpoint: "${MODEL_ENDPOINT}"
         # The foundation deployment whose model is infrastructure/shadewright-lab's triageModel.
         deployment: triage
         apiVersion: "2024-10-21"
-        maxTokensPerDay: 200000
+        maxTokensPerDay: 800000
       # No escalation model: the CRD refuses triage and escalation on the same endpoint and deployment, and the lab
       # has one deployment. Escalation (the read tools) needs a second foundation deployment (operator issue #80).
