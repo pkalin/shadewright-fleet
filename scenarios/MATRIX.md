@@ -13,8 +13,10 @@ Every phase, reason and condition on this page was read in the operator at `orig
 `docs/request-lifecycle.md` and `docs/troubleshooting.md`. The phases after the merge (`WaitingForDelivery`,
 `Verifying`, `Succeeded`, `Failed`, `Inconclusive`) and the conditions `Delivered`, `Configured`, `RolledOut`,
 `Cleared` and `Verified` are built. They run only when the executor has `--verify-outcomes` on (chart value
-`executor.verification.enabled`, off by default); with it off, a merged request stays `Merged`. Every row that ends
-after the merge assumes it is on. `AutoMergeQueued` and `Cancelled` exist in the API and nothing sets them.
+`executor.verification.enabled`, off by default). With it off, a request still in `Merged` stays there (`RolledOut`
+reports the rollout), a request found in `WaitingForDelivery` or `Verifying` ends `Inconclusive` with
+`VerificationDisabled`, and a stale plan merged by a person ends `Inconclusive` with `StalePlanMerged` once its rollout
+check is over. Every row that ends after the merge assumes it is on. `AutoMergeQueued` and `Cancelled` exist in the API and nothing sets them.
 
 Where it runs:
 
@@ -31,12 +33,12 @@ Where it runs:
 | 2 | Leak: the limit is raised, the kill returns later | `oom-leak`: `web` with a memory-backed volume that a load Deployment fills at a steady rate (see below) | `Failed`, at once when the kill is seen after the rollout | `OOMKilled`, from the verifier's report. The analyzer then proposes a revert (row 10) | Lab | exists (`oom-leak`); the kill was settled on Kind (see below), the outcome is planned: no agent ran |
 | 3 | Merged, but the Kustomization fails to apply | `delivery-blocked`: the `oom` files plus a `ValidatingAdmissionPolicy` and its binding that refuse a `web` memory limit above 60Mi (see below) | `Merged`, then `WaitingForDelivery`, then `Failed` at the end of the delivery window (one hour after the merge) | `DeliveryFailed`, because Flux failed on exactly the merge commit; the condition `RolledOut=False` with `DeliveryNotObserved` is what the code sets today | Lab | exists (`delivery-blocked`); the admission refusal was checked by hand on Kind, not through Flux or the agent |
 | 4 | Applied, but the pods keep the old value | `rollout-blocked`: the `oom` files plus a `LimitRange` whose container `max` memory is 56Mi (see below) | `Failed` at the timeout (21 minutes from the applied revision with the defaults), never `Succeeded` | `RolloutStuck`, because `RolledOut` is False (set today 10 minutes after the revision was applied) | Lab | exists (`rollout-blocked`); the LimitRange refusal was checked by hand on Kind, not through Flux or the agent |
-| 5 | The incident stops before the pull request merges | `keda-load-burst`: `keda-at-ceiling` with a load that ends by itself after a few minutes; leave the pull request unmerged (see below) | open: the operator has no phase for it. The request stays `AwaitingApproval` (`Approved=False`, reason `WaitingForReview`) until a person merges or closes the pull request, and no code ends it because the Incident stopped | open: no reason exists | Lab | new scenario needed; the outcome is not decided (see "Open points") |
+| 5 | The incident stops before the pull request merges | `keda-load-burst`: `keda-at-ceiling` with a load that ends by itself after a few minutes; leave the pull request unmerged (see below) | none ends it: the request stays `AwaitingApproval` (`Approved=False`, reason `WaitingForReview`) with its pull request open, and holds the target lock, until a person merges or closes the pull request. The deadline of 30 minutes (`Expired`, `PullRequestDeadline`) covers only the wait for the pull request to be opened and is cleared when it opens; no code reads the Incident's end in this phase. The issue's wording "ends without a merge, reason recorded" is therefore not met at any deadline, only when a person closes it (row 6) | `WaitingForReview` while it waits; no ending reason exists | Lab | new scenario needed; the outcome is the code's today, whether it should be different is open (see "Open points") |
 | 6 | Pull request closed unmerged by the reviewer | `make scenario-oom CLUSTER=lab`, then close the pull request on GitHub without merging | `NeedsIntervention`, terminal (decided 2026-11-13: a person rejecting a proposal is a signal the circuit breaker counts as a failure). No second pull request ([shadewright#643](https://github.com/pkalin/shadewright/issues/643), fixed in #674): a request queued behind it for the same target and field ends `Superseded` with reason `AnotherRequestClosed` and opens none | `ChangeRequestClosed` (on the closed request), `AnotherRequestClosed` (on a queued one) | Lab | exists (`oom`); the "no second pull request" half was fixed in [#674](https://github.com/pkalin/shadewright/pull/674) (merged 2026-11-13); the queued request needs a second Incident for the same target and field, as on 2026-11-10 (#643) |
 | 7 | Data missing during the window | no scenario: two procedures, a deleted or recreated target, and a stopped verifier (see below) | `Inconclusive` in both, never `Succeeded` and never `Failed` | `TargetGone` or `TargetReplaced` at once; `StaleReport` at the timeout when the verifier is stopped | Lab | new scenario needed (documented manual steps) |
 | 8 | KEDA ceiling raised, still at the ceiling | `keda-ceiling-persists`: `keda-at-ceiling` with a load of about 25 requests per second, so the trigger asks for 5 replicas against a ceiling of 3 | `Inconclusive` once rolled out and configured held for `stableFor` (3 minutes); never `Succeeded`, and not `Failed` on the symptom | `ClearingNotChecked` | Lab | exists (`keda-ceiling-persists`); rendered only, not run; the rate and the 5 desired replicas are not measured, the outcome is planned |
 | 9 | Partitioned StatefulSet rollout | `statefulset-partition`: the `statefulset-oom` files with `updateStrategy.rollingUpdate.partition: 1` on `cache`, so only `cache-1` can take the new limit (see below) | not `Succeeded`: `Inconclusive` at the timeout, unless the partition is lowered inside it | `PartialRollout`; `RolledOut` is True with its own reason `RolloutPartitioned` naming the pod left on the old revision | Lab | exists (`statefulset-partition`); the partition was checked by hand on Kind, not through Flux or the agent; the outcome needs ADR-0030 built |
-| 10 | Revert after a failed verification | the request of row 3 ends `Failed`; the analyzer then creates a revert request (see below) | a new pull request that needs approval; once merged, rolled out, configured and available for `stableFor`: `Inconclusive` | `RevertApplied` | Lab | new and planned |
+| 10 | Revert after a failed verification (the leak: the limit is raised, the kill returns) | the request of row 2 (or of row 3) ends `Failed`; the analyzer then creates a revert request (see below) | the failed request: `Failed`. The revert request, with a policy that allows the decrease: a pull request that needs approval, then `Inconclusive` once merged, rolled out, configured and available for `stableFor`. With the default policy (`maxDecreasePercent` 0): `Denied`, and a person reverts by hand | failed request `OOMKilled` (row 2) or `DeliveryFailed` (row 3); revert `RevertApplied` with the allowing policy, `DecreaseNotAllowed` with the default | Lab | new and planned |
 | 11 | A plan Shadewright knew was stale is merged by a person | `make scenario-oom CLUSTER=lab`; once the pull request is open, change the policy `demo-memory` (any change of its generation makes the plan stale), then merge the pull request before the executor closes it (the freshness check runs about every five minutes), or with a Git App that may not close pull requests (#199) | `Inconclusive`, never `Succeeded`. With verification on, a failure still ends `Failed` | `StalePlanMerged`; `PlanFresh` stays `False` with the stale reason (`PolicyChanged`) | Lab | new scenario needed; timing dependent; the circuit breaker counts it as no outcome |
 | 12 | The render of the build needs more than the limits | a Kustomization path whose build is over a limit of the render check (4 MiB of input, 4,096 YAML documents, 1,024 objects), the target's file inside it | `NeedsIntervention` | `TooLarge`: on `PolicyAllowed` (`Unknown`, no plan made) for input over the limits, on `PullRequestOpened` or `Approved` (`False`) for a render over 1,024 objects. A build that fits the input limits but needs more memory or CPU than the render's own bounds is refused the same way only after #614 (pull request 711, open on 2026-11-14) | Lab | after #614 for the resource-bound case; the input-limit case exists in the code today; new scenario needed |
 
@@ -144,10 +146,10 @@ a reset of `oom` cannot make this row: it tests row "Superseded" instead. The sy
 `keda-load-burst` is `keda-at-ceiling` with `loadgen` running its curl loop for a fixed time (a few minutes), then
 `sleep` for good. The ScaledObject file does not change, the HPA leaves its ceiling when the load ends, and the
 `ReplicaCeiling` Incident stops being observed while the pull request waits for review. The reviewer waits until the
-load has ended before looking. What the request does then is the point of the row, and ADR-0030 does not decide it. Its #95 items cover a merge
+load has ended before looking. What the request does then is the point of the row: read in the code, nothing ends it (the deadline of the pull request step is cleared once the pull request is open), and ADR-0030 does not decide it. Its #95 items cover a merge
 conflict before the merge (#95a) and a symptom that stopped before the rollout of a merged change (#95b, `Cleared`
-with reason `ResolvedBeforeRollout`); a close without a merge is row 6. Neither covers an unmerged pull request whose Incident has ended. The row stays
-open until the remaining part of #95 decides it. If a person merges after the load ended, #95b is the case that applies.
+with reason `ResolvedBeforeRollout`); a close without a merge is row 6. Neither covers an unmerged pull request whose Incident has ended. The expected
+outcome is the code's behaviour today; the row stays open until the remaining part of #95 decides whether it should change. If a person merges after the load ended, #95b is the case that applies.
 
 ### Row 7: data missing
 
@@ -210,9 +212,18 @@ ends `Inconclusive` with `RevertApplied`, never `Succeeded`. The verifier writes
 beside it: a revert of a revert is never created, an `Inconclusive` request never gets one, and a request whose revert
 link is not the exact inverse of a failed request ends `Denied` with `InvalidRevert` before any Git write.
 
-Open: a revert of a memory increase is a decrease, and policies refuse decreases by default (`maxDecreasePercent` 0).
-Without a policy rule for reverts the revert ends `Denied` with `DecreaseNotAllowed`. #96 decides that rule, so the
-expected outcome of this row depends on it.
+A revert of a memory increase is a decrease, and policies refuse decreases by default (`maxDecreasePercent` 0). The two
+ends:
+
+- Default policy: the revert ends `Denied` with `DecreaseNotAllowed`, and a person reverts by hand (ADR-0030, section 8).
+  Whether a policy may allow exactly the inverse of a failed request's change is still an open decision for the
+  maintainer (the fourth point of the ADR).
+- A policy that allows the decrease: the revert goes through approval and, once merged and held, ends `Inconclusive`
+  with `RevertApplied`.
+
+Proposed for the lab run: set `maxDecreasePercent` on the policy of the demo app (`demo-memory`) so that the revert path
+is exercised, and make one run with the default to show the denial. The setting is a proposal until the maintainer
+decides the policy question.
 
 ## Planned groups
 
@@ -223,6 +234,9 @@ Not part of v0.5.0 verification. Listed so the page matches the issue.
 | Change evidence | An OOM after a commit lowered the limit | a scenario whose cluster-branch history holds a commit that lowers `web`'s limit shortly before the symptom | planned |
 | Change evidence | A sync that rolled the workload for another reason | a commit that changes something other than the limit (an annotation, an env value) and rolls the pods, while an OOM is already present | planned |
 | Fleet registration | none written yet | the issue names the group but gives no rows | planned |
+| OpenTelemetry Demo flags (second cluster) | `adHighCpu` | the service gets CPU pressure; expected to be observed as throttling or a slow service, with no OOM and no pod restart, so the open question is whether the agent proposes anything | planned |
+| OpenTelemetry Demo flags (second cluster) | `cartFailure` | the cart service answers with errors at the set rate; expected to be observed as failing requests with the pods running and no memory symptom | planned |
+| OpenTelemetry Demo flags (second cluster) | `failedReadinessProbe` | the cart service pods stay not Ready; expected to be observed as a readiness failure on the cart service, no kill | planned |
 
 ## Second cluster
 
@@ -275,10 +289,10 @@ It needs no Argo CD: Flux already installs Helm charts on the lab.
 
 ## Open points
 
-- Row 5: no phase or reason exists for an Incident that ends while its pull request waits. The request stays
-  `AwaitingApproval`. The row stays open until the design decides what the executor does.
+- Row 5: nothing ends a request that waits for approval while its Incident resolves. It stays `AwaitingApproval`, with
+  its pull request open and the target locked, until a person merges or closes the pull request. The row stays open
+  until the design decides whether the executor should end it.
 - Row 12, resource-bound case: marked "after #614". The input-limit case already gives `TooLarge`.
 - Row 11 depends on a merge inside the freshness interval; the scenario needs a way to make that repeatable.
-- The flags `adHighCpu`, `cartFailure` and `failedReadinessProbe` of the OpenTelemetry demo have no expected phase or
-  reason yet (design note of the second cluster).
-- Row 10: a revert of a memory increase is a decrease and ends `Denied` with `DecreaseNotAllowed` today.
+- Row 10: a revert of a memory increase is a decrease and ends `Denied` with `DecreaseNotAllowed` under the default
+  policy. Whether a policy may allow the inverse of a failed change is a maintainer decision (ADR-0030, section 8).
