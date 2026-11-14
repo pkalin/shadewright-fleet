@@ -194,5 +194,10 @@ What each layer proves today. A cell without a link has no evidence yet.
 `loadgen` Deployment and replace `apps/demo/kustomization.yaml` to list it. They are not in the table above: `oom-leak` ran on
 a throwaway Kind cluster without an agent (see its README), `keda-ceiling-persists` has not run.
 
+`startup-probe` and `replaced-pod` are evaluation cases, not breaks: they have no files under `apps/demo/`, so switching them on
+changes nothing. Each holds the `expected.yaml` of a case the real-model evaluation scores, from the lab failures of
+2026-11-14 ([#726](https://github.com/pkalin/shadewright/issues/726), [#724](https://github.com/pkalin/shadewright/issues/724)):
+both expect no proposal.
+
 The other scenarios stop at schema, render and harness. `statefulset-oom` (the StatefulSet case,
 [#269](https://github.com/pkalin/shadewright/issues/269)) ran on the lab up to a merged pull request; its delivery is not checked.
