@@ -1,0 +1,54 @@
+# Scenario keda-ceiling-persists: heavier steady HTTP load on the worker than keda-at-ceiling. About 25 requests per
+# second in total (one curl, then sleep 0.03 s; the rate is an estimate, see the scenario README), which the trigger
+# (threshold 5 per replica) turns into 5 replicas: above the scenario's ceiling of 2 and also above the 3 that the
+# fix allows, so the HPA is still at its ceiling after the merge.
+# Same hardening as the worker (restricted Pod Security profile). The image is the worker's, expected to ship curl (not checked).
+# demo's NetworkPolicies already allow the traffic (allow-http-in-namespace, allow-dns).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: loadgen
+    app.kubernetes.io/part-of: demo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loadgen
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: loadgen
+        app.kubernetes.io/part-of: demo
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loadgen
+          image: ghcr.io/stefanprodan/podinfo:6.17.0@sha256:fa2f27c1a8561097e5144bfc0853eba6054d743b68b03de4cad4675616ddefb0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - while true; do curl -s -o /dev/null --max-time 2 http://worker.demo.svc.cluster.local/; sleep 0.03; done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

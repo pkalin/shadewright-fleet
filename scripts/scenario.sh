@@ -88,7 +88,14 @@ top_value() {
 # lists_resource <kustomization.yaml> <entry>: the file has a list item that is exactly <entry> (optionally quoted,
 # optionally with a trailing comment). Conservative: an entry it cannot read counts as not listed.
 lists_resource() {
-  awk -v want="$2" -v sq="'" '
+  local names
+  names="$(resource_names "$1")" || return 1
+  printf '%s\n' "$names" | grep -Fqx -- "$2"
+}
+
+# resource_names <file>: the entries of a kustomization.yaml list, one per line, unquoted and without comments.
+resource_names() {
+  awk -v sq="'" '
     /^[[:space:]]*-[[:space:]]+/ {
       v = $0
       sub(/^[[:space:]]*-[[:space:]]+/, "", v)
@@ -96,9 +103,8 @@ lists_resource() {
       sub(/[[:space:]]+$/, "", v)
       c = substr(v, 1, 1)
       if ((c == "\"" || c == sq) && length(v) >= 2 && substr(v, length(v), 1) == c) v = substr(v, 2, length(v) - 2)
-      if (v == want) { found = 1; exit }
-    }
-    END { exit !found }' "$1"
+      print v
+    }' "$1"
 }
 
 # prepare_scenario <base> <source> <name>: checks scenarios/<name> of commit <source> and sets SCENARIO_TREE to the tree
@@ -174,6 +180,16 @@ EOF
     fi
     GIT_INDEX_FILE="$index" git update-index --add --cacheinfo "100644,${sha},${rel}"
   done <"$entries"
+  # A scenario's apps/demo/kustomization.yaml lists everything the base lists, so switching the scenario on never
+  # makes Flux prune a workload the scenario does not touch.
+  if grep -Fqx "apps/demo/kustomization.yaml" "$paths" && git cat-file -e "${base}:apps/demo/kustomization.yaml" 2>/dev/null; then
+    git show "${src}:scenarios/${name}/apps/demo/kustomization.yaml" >"$kfile"
+    git show "${base}:apps/demo/kustomization.yaml" >"$WORK/base-kustomization.yaml"
+    while IFS= read -r v; do
+      lists_resource "$kfile" "$v" ||
+        die "scenarios/${name}/apps/demo/kustomization.yaml does not list ${v}, which apps/demo/kustomization.yaml on the base commit lists"
+    done < <(resource_names "$WORK/base-kustomization.yaml")
+  fi
   SCENARIO_TREE="$(GIT_INDEX_FILE="$index" git write-tree)"
 }
 

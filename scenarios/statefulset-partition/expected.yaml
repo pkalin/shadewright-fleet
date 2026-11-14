@@ -1,0 +1,30 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: statefulset-partition
+summary: The statefulset-oom scenario with partition 1 on cache, so only cache-1 takes a changed template and cache-0 stays on the old revision.
+incident:
+  reason: OOMKilled
+  status: planned
+  source: The same symptom as the statefulset-oom scenario (cache-1 is OOMKilled at 48Mi), read from the container status of cache-1 and attributed to StatefulSet demo/cache. Observed for statefulset-oom on the lab on 2026-11-08; not run for this scenario on a lab. On Kind cache-1 was seen OOMKilled by hand (see the README).
+  object:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    namespace: demo
+    name: cache
+diagnosis:
+  status: planned
+  evidence:
+    - fact: OOMKilled from the container status (last state), not from an event reason
+      source: the Incident reason, and the lastState.terminated.reason of pod cache-1
+    - fact: cache-0 is healthy and on the old revision, cache-1 is on the new one
+      source: the pods' controller-revision-hash label and the StatefulSet's currentRevision and updateRevision (a planned read-only tool)
+outcome:
+  type: pull-request
+  status: planned
+  note: The pull request changes the cache limit as in statefulset-oom. With partition 1 only cache-1 takes it, so cache-0 stays on the old revision after the rollout (MATRIX.md, row 9). Not run end to end.
+  action: SetContainerMemoryLimit
+  bounds:
+    min: 64Mi
+    max: 128Mi
+  paths:
+    - apps/demo/cache-statefulset.yaml

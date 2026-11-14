@@ -1,0 +1,53 @@
+# Scenario oom-leak: fills web's memory-backed data volume at a steady rate. Each loop posts a different 64 KiB body to
+# web's /store (podinfo writes one file per distinct body to /data, which is tmpfs in this scenario), then sleeps; the
+# rate is tuned in scenarios/oom-leak/README.md. A body is far below podinfo's 10 MiB request limit.
+# Same hardening as the worker (restricted Pod Security profile). The image is the worker's (it ships curl).
+# demo's NetworkPolicies already allow the traffic (allow-http-in-namespace, allow-dns).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: loadgen
+    app.kubernetes.io/part-of: demo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loadgen
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: loadgen
+        app.kubernetes.io/part-of: demo
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loadgen
+          image: ghcr.io/stefanprodan/podinfo:6.17.0@sha256:fa2f27c1a8561097e5144bfc0853eba6054d743b68b03de4cad4675616ddefb0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - i=0; while true; do i=$((i+1)); { echo "$i $(date +%s)"; head -c 65536 /dev/zero | tr '\0' x; } | curl -s -o /dev/null --max-time 5 --data-binary @- http://web.demo.svc.cluster.local/store; sleep 0.3; done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
