@@ -6,7 +6,6 @@ resources:
   - cache-service.yaml
   - cache-serviceaccount.yaml
   - cache-statefulset.yaml
-  - loadgen-deployment.yaml
   - networkpolicy-allow-dns.yaml
   - networkpolicy-allow-http-in-namespace.yaml
   - networkpolicy-allow-prometheus-scrape.yaml
