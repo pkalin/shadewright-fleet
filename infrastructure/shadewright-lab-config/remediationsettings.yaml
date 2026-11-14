@@ -1,7 +1,8 @@
 # The lab's RemediationSettings (operator config/samples/lab), for an evaluation run with the model analysis on
 # (infrastructure/shadewright-lab). maxAnalysesPerDay caps the model calls per UTC day; set it to 0 here to stop
-# the analysis without a chart change. No key anywhere: the analyzer reaches the model and the executor signs
-# with Key Vault through their workload identities.
+# the analysis without a chart change. The triage model is called through the Anthropic API: the analyzer reads its
+# key from a mounted file (the Secret shadewright-anthropic, created outside Git, see infrastructure/shadewright-lab)
+# and the settings hold no key. The executor still signs with Key Vault through its workload identity.
 apiVersion: remediation.shadewright.io/v1alpha1
 kind: RemediationSettings
 metadata:
@@ -30,15 +31,18 @@ spec:
   analysis:
     # Lab values for a full-day run of the scenario matrix (twelve rows), not a recommendation. The run of 2026-11-14
     # used 6 of 10 analyses on two scenarios, because one OOM opens three Incidents and each is analyzed (operator
-    # #432). About 3,500 tokens per analysis on gpt-5.4-mini: 40 analyses are about 140k tokens, well under the token
-    # cap below (800000, the old 200000 at the same ratio to the count).
+    # #432). About 7,000 tokens per analysis on Claude Haiku 5.5 in the evaluation of 2026-11-14: 40 analyses are about
+    # 280k tokens, under the token cap below (800000).
     maxAnalysesPerDay: 40
     models:
       triage:
-        endpoint: "${MODEL_ENDPOINT}"
-        # The foundation deployment whose model is infrastructure/shadewright-lab's triageModel.
-        deployment: triage
+        provider: Anthropic
+        # Fixed host of the Anthropic adapter, exactly this, no trailing slash.
+        endpoint: https://api.anthropic.com
+        # The model ID, infrastructure/shadewright-lab's triageModel.
+        deployment: claude-haiku-5-5
+        # Required by the CRD, not sent: the Anthropic adapter's API version is fixed in code.
         apiVersion: "2024-10-21"
         maxTokensPerDay: 800000
-      # No escalation model: the CRD refuses triage and escalation on the same endpoint and deployment, and the lab
-      # has one deployment. Escalation (the read tools) needs a second foundation deployment (operator issue #80).
+      # No escalation model: the lab has one triage model. Escalation (the read tools) needs a second deployment
+      # (operator issue #80).

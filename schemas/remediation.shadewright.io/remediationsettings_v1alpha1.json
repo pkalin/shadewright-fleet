@@ -71,21 +71,21 @@
                   "description": "escalation is the stronger model, called with read tools only on the deterministic escalation signals\nof ADR-0023. Left out, an escalation trigger hands the incident off to a person.",
                   "properties": {
                     "apiVersion": {
-                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview.",
+                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview. For provider Anthropic it is required too but not\nsent: that adapter's API version is fixed in code.",
                       "maxLength": 32,
                       "minLength": 2,
                       "pattern": "^(v1|[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(-preview)?)$",
                       "type": "string"
                     },
                     "deployment": {
-                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit.",
+                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit. For provider Anthropic it is the model ID exactly as the replies name it, such as\nclaude-haiku-5-5.",
                       "maxLength": 64,
                       "minLength": 1,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
                       "type": "string"
                     },
                     "endpoint": {
-                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.",
+                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.\nFor provider Anthropic it must be https://api.anthropic.com, the adapter's fixed host, and the allow-list\ndoes not apply; for Foundry that host is refused whatever the allow-list says.",
                       "maxLength": 256,
                       "minLength": 1,
                       "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*/?$",
@@ -97,6 +97,15 @@
                       "maximum": 1000000000,
                       "minimum": 0,
                       "type": "integer"
+                    },
+                    "provider": {
+                      "default": "Foundry",
+                      "description": "provider is the API the analyzer's adapter speaks to this deployment: Foundry (the default) or\nAnthropic. It names the API, not the model family: a Claude model on Microsoft Foundry is Foundry. With\nAnthropic the endpoint must be https://api.anthropic.com, the analyzer reads its API key from the file\nof its --anthropic-api-key-file flag (not in this object) and refuses the deployment without it,\ndeployment must equal the role's --triage-model or --escalation-model value, apiVersion is not sent\n(the adapter's API version is fixed), and the redacted context leaves Azure. A Foundry deployment may\nnot name the host api.anthropic.com. There is no fallback between providers.",
+                      "enum": [
+                        "Foundry",
+                        "Anthropic"
+                      ],
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -105,28 +114,38 @@
                     "endpoint",
                     "maxTokensPerDay"
                   ],
-                  "type": "object"
+                  "type": "object",
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "a deployment with provider Anthropic must have the endpoint https://api.anthropic.com",
+                      "rule": "!has(self.provider) || self.provider != 'Anthropic' || self.endpoint == 'https://api.anthropic.com'"
+                    },
+                    {
+                      "message": "the host api.anthropic.com is only for a deployment with provider Anthropic",
+                      "rule": "(has(self.provider) && self.provider == 'Anthropic') || !isURL(self.endpoint) || url(self.endpoint).getHostname() != 'api.anthropic.com'"
+                    }
+                  ]
                 },
                 "triage": {
                   "additionalProperties": false,
                   "description": "triage is the small model for the one structured call on the prepared context, without tools. Left out,\nno model is called: an incident no runbook matches is handed off to a person, and no unit of\nspec.analysis.maxAnalysesPerDay is used for it.",
                   "properties": {
                     "apiVersion": {
-                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview.",
+                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview. For provider Anthropic it is required too but not\nsent: that adapter's API version is fixed in code.",
                       "maxLength": 32,
                       "minLength": 2,
                       "pattern": "^(v1|[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(-preview)?)$",
                       "type": "string"
                     },
                     "deployment": {
-                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit.",
+                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit. For provider Anthropic it is the model ID exactly as the replies name it, such as\nclaude-haiku-5-5.",
                       "maxLength": 64,
                       "minLength": 1,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
                       "type": "string"
                     },
                     "endpoint": {
-                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.",
+                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.\nFor provider Anthropic it must be https://api.anthropic.com, the adapter's fixed host, and the allow-list\ndoes not apply; for Foundry that host is refused whatever the allow-list says.",
                       "maxLength": 256,
                       "minLength": 1,
                       "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*/?$",
@@ -138,6 +157,15 @@
                       "maximum": 1000000000,
                       "minimum": 0,
                       "type": "integer"
+                    },
+                    "provider": {
+                      "default": "Foundry",
+                      "description": "provider is the API the analyzer's adapter speaks to this deployment: Foundry (the default) or\nAnthropic. It names the API, not the model family: a Claude model on Microsoft Foundry is Foundry. With\nAnthropic the endpoint must be https://api.anthropic.com, the analyzer reads its API key from the file\nof its --anthropic-api-key-file flag (not in this object) and refuses the deployment without it,\ndeployment must equal the role's --triage-model or --escalation-model value, apiVersion is not sent\n(the adapter's API version is fixed), and the redacted context leaves Azure. A Foundry deployment may\nnot name the host api.anthropic.com. There is no fallback between providers.",
+                      "enum": [
+                        "Foundry",
+                        "Anthropic"
+                      ],
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -146,7 +174,17 @@
                     "endpoint",
                     "maxTokensPerDay"
                   ],
-                  "type": "object"
+                  "type": "object",
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "a deployment with provider Anthropic must have the endpoint https://api.anthropic.com",
+                      "rule": "!has(self.provider) || self.provider != 'Anthropic' || self.endpoint == 'https://api.anthropic.com'"
+                    },
+                    {
+                      "message": "the host api.anthropic.com is only for a deployment with provider Anthropic",
+                      "rule": "(has(self.provider) && self.provider == 'Anthropic') || !isURL(self.endpoint) || url(self.endpoint).getHostname() != 'api.anthropic.com'"
+                    }
+                  ]
                 }
               },
               "type": "object",
