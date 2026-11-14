@@ -22,7 +22,7 @@ The field that is broken is the one the action patches, so a reset changes it ba
 ## Run on the lab (2026-11-14)
 
 It ran on the lab with chart `0.5.0-rc.1` (row 8 of the matrix, [#78](https://github.com/pkalin/shadewright-fleet/pull/78)).
-After the fix the HPA showed about 6.1 per replica against a target of 5 at 2 of 2 replicas, so the load asks for more
+Before the fix the HPA showed about 6.1 per replica against a target of 5 at 2 of 2 replicas, so the load asks for more
 than the ceiling, as intended. The exact request rate was still not measured, and the 5 desired replicas were not
 read from the HPA. Not run on Kind: KEDA and Prometheus were not installed there for this scenario.
 
