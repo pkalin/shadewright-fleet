@@ -96,6 +96,8 @@ make tools            # pinned kustomize, kubeconform, kind, kubectl, shellcheck
 scripts/render.sh     # kustomize build of clusters/, infrastructure/, apps/, kubeconform -strict, Flux paths exist
 make lint test        # shellcheck and the offline tests of scripts/ (tests/)
 make check-scenarios  # every scenario: layout, expected.yaml against the schema, render as declared
+# CI sets CHECK_BASE=origin/main on a pull request to a cluster branch: scenarios are laid over main, not over the
+# branch (which already holds one scenario's files)
 ```
 
 `render.sh` and the harness refuse kustomize and kubeconform versions other than those in `scripts/tools.env`;

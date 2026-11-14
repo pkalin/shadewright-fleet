@@ -7,12 +7,16 @@
 #   CLUSTER=kind scripts/scenario.sh apply <name>  # make scenario-<name> CLUSTER=kind
 #   CLUSTER=kind scripts/scenario.sh reset         # make scenario-reset CLUSTER=kind
 #   scripts/scenario.sh check [--render]           # offline checks of the scenarios of HEAD, rendered on its apps/ (CI)
+#   CHECK_BASE=origin/main scripts/scenario.sh check # the same, over that commit's tree instead of HEAD's (see below)
 #
 # Environment:
 #   CLUSTER       kind or lab. Required by apply and reset; must match the branch Flux tracks in the current context.
 #   SCENARIO_REF  where the scenario's files are read from (default: origin/main). apps/ always comes from origin/main.
 #                 Only with list or DRY_RUN=1: apply refuses it without DRY_RUN=1, so a push is always built from
 #                 origin/main and unreviewed local files never reach a cluster branch. reset never reads it.
+#   CHECK_BASE    check only: the commit whose tree the scenarios are laid over (default: HEAD). CI sets origin/main on a
+#                 pull request to a cluster branch, because that branch already holds one scenario's files and
+#                 scenarios are defined against main (ADR-0022). The scenario files themselves are still read from HEAD.
 #   DRY_RUN=1     build, render and show the commit, but do not push.
 #   RECONCILE=0   do not ask Flux to fetch at once after the push (it polls anyway).
 #   FLEET_REMOTE  the Git remote of this repository (default: origin).
@@ -244,10 +248,10 @@ cmd_list() {
   [ "$found" -eq 1 ] || echo "  (none yet)"
 }
 
-# cmd_check [--render]: every scenario of the HEAD commit, checked and rendered on HEAD's own apps/, exactly as apply
-# builds and renders it once HEAD is on main. Uncommitted changes are not checked.
+# cmd_check [--render]: every scenario of the HEAD commit, checked and rendered on HEAD's own apps/ (or on CHECK_BASE's),
+# exactly as apply builds and renders it once HEAD is on main. Uncommitted changes are not checked.
 cmd_check() {
-  local do_render=0 names=() n got head rc status=0
+  local do_render=0 names=() n got head base rc status=0
   case "${1:-}" in
     --render) do_render=1 ;;
     '') ;;
@@ -255,6 +259,10 @@ cmd_check() {
   esac
   if [ "$do_render" -eq 1 ]; then require_render_tools; else need "$KUBECONFORM"; fi
   head="$(git rev-parse --verify "HEAD^{commit}")"
+  base="$head"
+  if [ -n "${CHECK_BASE:-}" ]; then
+    base="$(git rev-parse --verify "${CHECK_BASE}^{commit}")" || die "CHECK_BASE ${CHECK_BASE} is not a commit"
+  fi
   if [ -n "$(git status --porcelain -- scenarios apps)" ]; then
     log "warning: uncommitted changes under scenarios/ or apps/ are not checked; commit them first"
   fi
@@ -267,14 +275,14 @@ cmd_check() {
     echo "no scenarios to check"
     return 0
   fi
-  echo "checking the scenarios of ${head}"
+  echo "checking the scenarios of ${head}, laid over ${base}"
   for n in "${names[@]}"; do
     echo "== scenarios/${n}"
     # A subshell with its own errexit, so one invalid scenario does not hide the others.
     set +e
     (
       set -e
-      prepare_scenario "$head" "$head" "$n"
+      prepare_scenario "$base" "$head" "$n"
       [ "$do_render" -eq 1 ] || exit 0
       got="$(render_tree "$SCENARIO_TREE" "apps/ with scenario ${n}")"
       if [ "$got" != "$SCENARIO_RENDER" ]; then

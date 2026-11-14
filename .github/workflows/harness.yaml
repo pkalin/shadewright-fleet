@@ -37,5 +37,15 @@ jobs:
       - name: Offline tests
         run: make test
 
+      # Scenarios are defined against main (ADR-0022). A cluster branch holds main's tree plus one scenario's files, so
+      # a pull request to it is checked over origin/main, not over the branch it targets.
       - name: Check the scenarios
-        run: make check-scenarios
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          case "$BASE_REF" in
+            cluster/*)
+              git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
+              export CHECK_BASE=origin/main ;;
+          esac
+          make check-scenarios
