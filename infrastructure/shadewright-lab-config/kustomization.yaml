@@ -9,7 +9,6 @@
 #   GITHUB_APP_CLIENT_ID         var.github_app_client_id
 #   GITHUB_APP_INSTALLATION_ID   var.github_app_installation_id, forwarded as "id<number>" (clusters/lab/shadewright-config.yaml)
 #   GITHUB_APP_KEY_ID            foundation output key_vault: <uri>/keys/<github_app_key>
-#   MODEL_ENDPOINT               foundation output model_endpoint
 #
 # The agent's own pull requests can never change these files: the policy allows apps/demo/*-deployment.yaml only.
 apiVersion: kustomize.config.k8s.io/v1beta1

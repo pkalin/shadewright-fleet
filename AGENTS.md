@@ -41,10 +41,12 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
     header) is applied only by `clusters/lab/shadewright.yaml`, after `infrastructure`; nothing depends on it, so a
     broken agent cannot block `apps`. The Kind cluster does not install the agent through Flux; see README, "Kind".
     `infrastructure/shadewright-lab/` also turns the model analysis on for an evaluation run (not production): triage
-    model, no `escalationModel` (the CRD refuses escalation on the triage deployment; a second deployment comes with operator issue #80),
+    model `claude-haiku-5-5` through the Anthropic API (operator ADR-0037; the key is the Secret `shadewright-anthropic` in
+    `shadewright-system`, created outside Git by shadewright-azure's `make lab-up` from `LAB_ANTHROPIC_KEY_FILE`, mounted into the analyzer
+    only; without it the analyzer pod stays in ContainerCreating), no `escalationModel` (the lab has one triage model; a second comes with operator issue #80),
     `prometheus.url` with the analyzer-to-Prometheus egress (`networkPolicy.analyzer.prometheus`; the ingress side is
-    in `infrastructure/prometheus/networkpolicy-server.yaml`), `endpointSuffixes` limited to the lab's own AI Services host (`${MODEL_ENDPOINT_SUFFIX}`) and
-    `actionPolicies`. The daily cap (`maxAnalysesPerDay`) is in the `RemediationSettings`, not here:
+    in `infrastructure/prometheus/networkpolicy-server.yaml`), `endpointSuffixes` limited to the lab's own AI Services host (`${MODEL_ENDPOINT_SUFFIX}`; the flag is still required, the
+    allow-list does not apply to Anthropic) and `actionPolicies`. The daily cap (`maxAnalysesPerDay`) is in the `RemediationSettings`, not here:
     `infrastructure/shadewright-lab-config/` holds them and the `demo-memory` and `demo-keda` policies, applied by
     `clusters/lab/shadewright-config.yaml` after `shadewright` (the chart installs the CRDs), with the App IDs, Key
     Vault key, repository and branch as `${VAR}` substitutions from shadewright-azure. Its `render-sample.env` gives

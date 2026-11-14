@@ -87,7 +87,7 @@ expect_ok "a chart that matches its digests passes" "accepts infrastructure/shad
 check "the CRDs are applied before the dry run" bash -c 'grep -E "server-side|dry-run=server" "$STUB_LOG" | head -1 | grep -q server-side'
 # shellcheck disable=SC2016
 check "the CRD is plain YAML (directives dropped)" bash -c '! grep -q "{{" "$T_CRDS" && grep -q "name: things.example.io" "$T_CRDS"'
-check "the rendered configuration is what the dry run receives" grep -q 'endpoint: "https://ais-example' "$T_APPLIED"
+check "the rendered configuration is what the dry run receives" grep -q 'endpoint: https://api.anthropic.com' "$T_APPLIED"
 # shellcheck disable=SC2016
 check "no placeholder reaches the API server" bash -c '! grep -q "\${" "$T_APPLIED"'
 
