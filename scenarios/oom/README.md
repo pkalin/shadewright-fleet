@@ -79,6 +79,8 @@ Prometheus read goes through the `MetricsSource` interface, which is not wired i
 
 ## Expected outcome
 
+Runs of 2026-11-14 on the lab (chart `0.5.0-rc.1` and rc.2): #70 and #82, both `Succeeded` (matrix row 1); #75 closed unmerged (row 6).
+
 A pull request with `SetContainerMemoryLimit` on container `web`, raising the limit within the policy's bounds. It
 changes only `resources.limits.memory` in `apps/demo/web-deployment.yaml`. This is the positive stage 2 case.
 Observed: the analyzer producing the request from the Incident and a diagnosis, and the pull request, its merge and

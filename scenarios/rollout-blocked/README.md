@@ -4,7 +4,7 @@
 `apps/demo/kustomization.yaml`, and adds `apps/demo/limitrange-container-max-memory.yaml`. It is row 4 of the
 [matrix](../MATRIX.md).
 
-**Status: exists, not run through Flux or the agent.** The LimitRange was checked by hand on a Kind cluster (below).
+**Status: exists, run on the lab on 2026-11-14.** The LimitRange was checked by hand on a Kind cluster (below); the lab run (chart `0.5.0-rc.1`, [#79](https://github.com/pkalin/shadewright-fleet/pull/79)) is in "Expected outcome".
 
 ## What breaks
 
@@ -35,6 +35,11 @@ which that bare cluster did not have; it was left out of the check.
 
 The pull request of `oom` (`SetContainerMemoryLimit`, `48Mi` to `64Mi`), merged and applied, but never rolled out.
 The phase and reason are in [MATRIX.md](../MATRIX.md), row 4.
+
+Observed on the lab (2026-11-14, chart `0.5.0-rc.1`): #79 merged at 15:51:52, `RolledOut=False` with `RolloutStuck` at
+16:03:14 (10 minutes after the applied revision), the request `Failed` with `RolloutStuck` at 16:14:18 (21 minutes).
+The automatic revert (64Mi back to 48Mi) was `Denied` with `BelowMinimum` (`min: 64Mi`), as the policy minimum is above
+the original value.
 
 ## Verify
 
