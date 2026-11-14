@@ -71,7 +71,7 @@ spec:
               memory: 32Mi
             limits:
               cpu: 200m
-              memory: 48Mi
+              memory: 64Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
