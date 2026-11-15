@@ -59,6 +59,9 @@ on `apps` removes whatever a scenario added. One scenario is on at a time per cl
 replaces it. The branch only moves forward and its history records every switch and reset. Nothing here writes
 `main`, and the CI Kind cluster tracks the pull request's ref, so the harness refuses to run there.
 
+A symptom Incident that is based on a condition and is deleted after its condition turned True is not opened again.
+When you clear Incidents between runs, clear them before switching the scenario on, from a clean baseline.
+
 ## Layout
 
 ```text

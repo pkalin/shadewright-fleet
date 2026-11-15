@@ -36,6 +36,9 @@ so in v0.5.0 the `Cleared` and `Verified` conditions stay `Unknown` with reason 
 `KindNotChecked`. Observed on 2026-11-14: the request ended `Inconclusive` at 15:42:36, 4 minutes after the merge at
 15:38:37 (`Verifying` at 15:39:32), not `Succeeded` and not `Failed` on the symptom (`scenarios/MATRIX.md`, row 8).
 
+The ceiling symptom opens an Incident only when the worker starts from 1 replica with no ceiling condition. With 3
+replicas still running from an earlier scenario, the model answers `MissingData`. Reset and wait for 1 replica first.
+
 ## Restricted profile
 
 Nothing in the Pod Security "restricted" profile is broken. The deliberate changes from `main` are
