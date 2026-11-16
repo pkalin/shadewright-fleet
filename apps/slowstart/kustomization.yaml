@@ -1,0 +1,8 @@
+# The slowstart demo workload (readiness failure at every start, see slowstart-deployment.yaml). Only resources, one
+# object per file (ADR-0012). It has its own folder, not apps/demo/, because every scenario that replaces
+# apps/demo/kustomization.yaml must list everything that file lists on main; no scenario touches this one.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - slowstart-deployment.yaml
+  - slowstart-serviceaccount.yaml
