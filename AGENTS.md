@@ -66,7 +66,7 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 - `scenarios/`: one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod,
   broken KEDA trigger, invalid manifest, StatefulSet OOM, and the load-driven `oom-leak` and `keda-ceiling-persists`), each with a `README.md` (what breaks, the expected diagnosis and the
   expected PR or refusal), an `expected.yaml` (schema in `scenarios/schema/`) and the broken versions of files
-  under `apps/demo/`, at `scenarios/<name>/apps/demo/<file>`. Layout and schema: `scenarios/README.md`.
+  under `apps/demo/` (or `apps/slowstart/`), at `scenarios/<name>/apps/demo/<file>`. Layout and schema: `scenarios/README.md`.
 - `scripts/`: `render.sh` (the render check), `scenario.sh` (the scenario harness), `kind.sh` (the Kind cluster),
   `install-tools.sh`, `lib.sh`, and `tools.env`, the one place every tool version and checksum is pinned.
 - `Makefile`: entry points, one script call each. `tests/`: offline tests of the scripts.
@@ -74,7 +74,7 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
 ## Scenarios (ADR-0022)
 
 Each cluster's Flux tracks its own branch, `cluster/kind` or `cluster/lab`, never `main`. `make scenario-<name>
-CLUSTER=kind|lab` commits `main`'s tree with the scenario's files over `apps/demo/` on top of that branch, and
+CLUSTER=kind|lab` commits `main`'s tree with the scenario's files over `apps/demo/` or `apps/slowstart/` on top of that branch, and
 `make scenario-reset CLUSTER=kind|lab` commits `main`'s tree; both push fast-forwards only. The harness refuses
 unless the `GitRepository` `flux-system/fleet` in the current kube context tracks exactly `cluster/<CLUSTER>`. Never
 add a way for scripts here to write `main`, force-push, or create or delete a branch, and keep `push_cluster_branch`

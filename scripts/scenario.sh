@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The scenario harness (ADR-0022). A scenario is one commit on the branch the cluster's Flux tracks, cluster/<CLUSTER>:
-# main's tree with the scenario's files copied over apps/demo/. A reset is one commit of main's tree. Both are pushed
+# main's tree with the scenario's files copied over apps/demo/ or apps/slowstart/. A reset is one commit of main's tree. Both are pushed
 # as fast-forwards; nothing here ever writes main, force-pushes, or creates a branch.
 #
 #   scripts/scenario.sh list                       # scenarios on origin/main (or SCENARIO_REF)
@@ -112,10 +112,10 @@ resource_names() {
 }
 
 # prepare_scenario <base> <source> <name>: checks scenarios/<name> of commit <source> and sets SCENARIO_TREE to the tree
-# of commit <base> with the scenario's files over apps/demo/, and SCENARIO_RENDER to the render its expected.yaml
+# of commit <base> with the scenario's files over apps/demo/ and apps/slowstart/, and SCENARIO_RENDER to the render its expected.yaml
 # declares. The one validator of the layout, for both check and apply:
-#   - scenarios/<name> holds README.md, expected.yaml and otherwise only regular files under apps/demo/;
-#   - each file under apps/demo/ replaces a file of <base>, or is new in an existing directory whose kustomization.yaml
+#   - scenarios/<name> holds README.md, expected.yaml and otherwise only regular files under apps/demo/ or apps/slowstart/;
+#   - each file under those folders replaces a file of <base>, or is new in an existing directory whose kustomization.yaml
 #     the scenario also replaces and lists it in, so a scenario file can never be silently left out of the build;
 #   - expected.yaml is valid against <source>'s scenarios/schema and names the folder.
 prepare_scenario() {
@@ -140,8 +140,8 @@ EOF
     fi
     case "$rel" in
       README.md | expected.yaml) ;;
-      apps/demo/?*) printf '%s %s\n' "$sha" "$rel" >>"$entries" ;;
-      *) die "scenarios/${name}/${rel} is outside apps/demo/: a scenario replaces files under apps/demo/ only" ;;
+      apps/demo/?* | apps/slowstart/?*) printf '%s %s\n' "$sha" "$rel" >>"$entries" ;;
+      *) die "scenarios/${name}/${rel} is outside apps/demo/ and apps/slowstart/: a scenario replaces files under those two folders only" ;;
     esac
   done < <(git ls-tree -r -z "$src" -- "scenarios/${name}/")
   git cat-file -e "${src}:scenarios/${name}/README.md" 2>/dev/null || die "scenarios/${name}/README.md is missing"
@@ -184,16 +184,18 @@ EOF
     fi
     GIT_INDEX_FILE="$index" git update-index --add --cacheinfo "100644,${sha},${rel}"
   done <"$entries"
-  # A scenario's apps/demo/kustomization.yaml lists everything the base lists, so switching the scenario on never
-  # makes Flux prune a workload the scenario does not touch.
-  if grep -Fqx "apps/demo/kustomization.yaml" "$paths" && git cat-file -e "${base}:apps/demo/kustomization.yaml" 2>/dev/null; then
-    git show "${src}:scenarios/${name}/apps/demo/kustomization.yaml" >"$kfile"
-    git show "${base}:apps/demo/kustomization.yaml" >"$WORK/base-kustomization.yaml"
-    while IFS= read -r v; do
-      lists_resource "$kfile" "$v" ||
-        die "scenarios/${name}/apps/demo/kustomization.yaml does not list ${v}, which apps/demo/kustomization.yaml on the base commit lists"
-    done < <(resource_names "$WORK/base-kustomization.yaml")
-  fi
+  # A scenario's kustomization.yaml (apps/demo/ or apps/slowstart/) lists everything the base lists, so switching the
+  # scenario on never makes Flux prune a workload the scenario does not touch.
+  for dir in apps/demo apps/slowstart; do
+    if grep -Fqx "${dir}/kustomization.yaml" "$paths" && git cat-file -e "${base}:${dir}/kustomization.yaml" 2>/dev/null; then
+      git show "${src}:scenarios/${name}/${dir}/kustomization.yaml" >"$kfile"
+      git show "${base}:${dir}/kustomization.yaml" >"$WORK/base-kustomization.yaml"
+      while IFS= read -r v; do
+        lists_resource "$kfile" "$v" ||
+          die "scenarios/${name}/${dir}/kustomization.yaml does not list ${v}, which ${dir}/kustomization.yaml on the base commit lists"
+      done < <(resource_names "$WORK/base-kustomization.yaml")
+    fi
+  done
   SCENARIO_TREE="$(GIT_INDEX_FILE="$index" git write-tree)"
 }
 
