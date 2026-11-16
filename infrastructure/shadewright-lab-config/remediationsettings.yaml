@@ -29,11 +29,13 @@ spec:
           azureKeyVault:
             keyID: "${GITHUB_APP_KEY_ID}"
   analysis:
-    # Lab values for a full-day run of the scenario matrix (twelve rows), not a recommendation. The run of 2026-11-14
-    # used 6 of 10 analyses on two scenarios, because one OOM opens three Incidents and each is analyzed (operator
-    # #432). About 7,000 tokens per analysis on Claude Haiku 5.5 in the evaluation of 2026-11-14: 40 analyses are about
-    # 280k tokens, under the token cap below (800000).
-    maxAnalysesPerDay: 40
+    # Lab values for a full-day run of the scenario matrix (seventeen rows, scenarios/MATRIX.md), not a recommendation.
+    # A full run needs 22 analyses when the grouping rule holds (row 13 three times), 54 if every OOM fault opened
+    # three Incidents as on 2026-11-14 (operator #432, one OOM opened three and each was analyzed); 60 is that and a
+    # margin of 6. About 7,000 tokens per analysis on Claude Haiku 5.5 in the evaluation of 2026-11-14: 60 analyses are
+    # about 420k tokens, under the token cap below (800000). The arithmetic is in scenarios/MATRIX.md, "Analyses of a
+    # full run".
+    maxAnalysesPerDay: 60
     models:
       triage:
         provider: Anthropic

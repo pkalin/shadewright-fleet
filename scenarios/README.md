@@ -177,7 +177,7 @@ fails in `flux-system` (the Kustomization `apps`), which is not watched, so it p
 
 ## Scenario matrix
 
-[MATRIX.md](MATRIX.md) lists the verification rows planned for v0.5.0: each row's setup, expected phase and reason, where it
+[MATRIX.md](MATRIX.md) lists the verification rows planned for v0.6.0: each row's setup, expected phase and reason, where it
 runs and whether its scenario exists, plus the design of a second cluster.
 
 ## Evidence matrix
