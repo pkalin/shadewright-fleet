@@ -10,6 +10,8 @@ resources:
   - networkpolicy-allow-http-in-namespace.yaml
   - networkpolicy-allow-prometheus-scrape.yaml
   - networkpolicy-default-deny.yaml
+  - slowstart-deployment.yaml
+  - slowstart-serviceaccount.yaml
   - web-deployment.yaml
   - web-service.yaml
   - web-serviceaccount.yaml
