@@ -31,11 +31,13 @@ spec:
   analysis:
     # Lab values for a full-day run of the scenario matrix (seventeen rows, scenarios/MATRIX.md), not a recommendation.
     # A full run needs 22 analyses when the grouping rule holds (row 13 three times), 54 if every OOM fault opened
-    # three Incidents as on 2026-11-14 (operator #432, one OOM opened three and each was analyzed); 60 is that and a
-    # margin of 6. About 7,000 tokens per analysis on Claude Haiku 5.5 in the evaluation of 2026-11-14: 60 analyses are
+    # three Incidents as on 2026-11-14 (operator #432, one OOM opened three and each was analyzed). About 7,000 tokens
+    # per analysis on Claude Haiku 5.5 in the evaluation of 2026-11-14: one pass of 60 analyses is
     # about 420k tokens, under the token cap below (800000). The arithmetic is in scenarios/MATRIX.md, "Analyses of a
     # full run".
-    maxAnalysesPerDay: 60
+    # 180 since 2026-11-17: the release run goes through the matrix once per model provider (three passes in one
+    # day), 3 x 54 analyses at worst and a margin of 18. The token cap below is per model, so it stays.
+    maxAnalysesPerDay: 180
     models:
       triage:
         provider: Anthropic

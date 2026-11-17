@@ -294,9 +294,11 @@ revert request and the deterministic steps use no analysis. Each row's analyses 
 
 That is 22 analyses. Row 13 now runs on `slowstart` instead of `web` and row 14 on `slowstart` instead of `worker`, so the counts are the same. If the grouping rule did not hold, one fault would open three Incidents and each would be analyzed
 (the run of 2026-11-14, [shadewright#432](https://github.com/pkalin/shadewright/issues/432)): 2 more for each of the 16
-analyses of OOM faults (rows 1, 2, 3, 4, 6 twice, 7 twice, 10, 11, 13 three times, 15, 16, 17), 32 more, so 54. The cap is
-60: that and a margin of 6, about one more run of a row. At about 7,000 tokens an analysis (the evaluation of
-2026-11-14) 60 analyses are about 420k tokens, under `maxTokensPerDay` (800000).
+analyses of OOM faults (rows 1, 2, 3, 4, 6 twice, 7 twice, 10, 11, 13 three times, 15, 16, 17), 32 more, so 54 for one
+pass. The release run goes through the matrix once per model provider (decided 2026-11-17: Microsoft Foundry, the
+Anthropic API and the OpenAI API), three passes in one UTC day: 162 at worst. The cap is 180: that and a margin of 18,
+about six more runs of a row. The token cap is per model: at about 7,000 tokens an analysis (the evaluation of
+2026-11-14) one pass of 60 analyses is about 420k tokens, under `maxTokensPerDay` (800000) of the model it runs on.
 
 ## Running rows one after another
 
