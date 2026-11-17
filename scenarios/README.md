@@ -45,8 +45,8 @@ Each cluster's Flux tracks its own branch, `cluster/<cluster>`, never `main`. `m
    is exactly `cluster/<c>` (`<c>` is `kind` or `lab`), with no tag, semver, ref name or commit pinned,
    and the `GitRepository` URL is the same repository as the Git remote (`origin`, or `FLEET_REMOTE`);
 2. refuses if `cluster/<c>` does not exist on the remote: the maintainer creates cluster branches and their rulesets;
-3. builds a tree from the current `origin/main` with the scenario's files copied over `apps/demo/` (only paths under
-   `scenarios/<name>/apps/demo/`; anything else in the folder besides `README.md` and `expected.yaml` is refused, and
+3. builds a tree from the current `origin/main` with the scenario's files copied over `apps/demo/` or `apps/slowstart/` (only paths under
+   `scenarios/<name>/apps/demo/` or `scenarios/<name>/apps/slowstart/`; anything else in the folder besides `README.md` and `expected.yaml` is refused, and
    so is a file that is not on `main` unless the scenario's own `kustomization.yaml` lists it, see Layout);
 4. renders `apps/` of that tree with the pinned kustomize and kubeconform (`scripts/tools.env`, the versions of
    `scripts/render.sh`), and refuses unless the result matches the scenario's `render` (see below);
@@ -71,6 +71,7 @@ scenarios/
     README.md                     what breaks, what was observed, the expected diagnosis and outcome, and why
     expected.yaml                 the same, machine-readable, each part marked observed or planned (schema below)
     apps/demo/<file>              the broken version of apps/demo/<file>, at the same path relative to the repo
+    apps/slowstart/<file>         the same for the slowstart workload (only `slowstart-oom` uses it, see its README)
 ```
 
 `<name>` is lower case letters, digits and hyphens (not `schema`, `list`, `reset` or `check`) and is the make
@@ -177,7 +178,7 @@ fails in `flux-system` (the Kustomization `apps`), which is not watched, so it p
 
 ## Scenario matrix
 
-[MATRIX.md](MATRIX.md) lists the verification rows planned for v0.5.0: each row's setup, expected phase and reason, where it
+[MATRIX.md](MATRIX.md) lists the verification rows planned for v0.6.0: each row's setup, expected phase and reason, where it
 runs and whether its scenario exists, plus the design of a second cluster.
 
 ## Evidence matrix

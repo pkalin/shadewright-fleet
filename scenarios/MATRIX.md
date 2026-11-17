@@ -1,6 +1,6 @@
 # Scenario matrix
 
-The scenarios Shadewright v0.5.0 is checked against: for each, the setup, the phase and reason the request is
+The scenarios Shadewright v0.6.0 is checked against: for each, the setup, the phase and reason the request is
 expected to end with, where it runs, and whether the scenario exists. It is a plan, not a record: nothing here is
 **observed** unless a row says so and names the run (see "Observed and planned" in the [README](README.md)).
 Tracked in [shadewright#672](https://github.com/pkalin/shadewright/issues/672).
@@ -16,7 +16,7 @@ Every phase, reason and condition on this page was read in the operator at `orig
 `executor.verification.enabled`, off by default). With it off, a request still in `Merged` stays there (`RolledOut`
 reports the rollout), a request found in `WaitingForDelivery` or `Verifying` ends `Inconclusive` with
 `VerificationDisabled`, and a stale plan merged by a person ends `Inconclusive` with `StalePlanMerged` once its rollout
-check is over. Every row that ends after the merge assumes it is on. `AutoMergeQueued` and `Cancelled` exist in the API and nothing sets them.
+check is over. Every row that ends after the merge assumes it is on. `AutoMergeQueued` exists in the API and nothing sets it. `Cancelled` is set by `spec.cancel` (reason `CancelRequested`, built in #289), by a replacement whose handoff did not happen (`HandoffRefused`, `HandoffAborted`, `HintsTurnedOff`) and, once [shadewright#816](https://github.com/pkalin/shadewright/pull/816) is merged, by the executor for a request whose Incident was folded into its cause or is gone before its pull request opened (`IncidentFolded`, `IncidentGone`). On `origin/main` of the operator on 2026-11-16 (`f102c51a`) the last two are not in the code or in `docs/troubleshooting.md`; they are in the diff of #816 and in ADR-0039 points 21 and 22. Rows 13 to 17 read ADR-0039, `docs/design/3-observation-and-deduplication.md` and `test/eval/grouping_test.go` at that commit.
 
 Where it runs:
 
@@ -41,8 +41,11 @@ Where it runs:
 | 10 | Revert after a failed verification (the leak: the limit is raised, the kill returns) | the request of row 2 ends `Failed`; the analyzer then creates a revert request (see below) | the failed request: `Failed`. The revert request, with a policy that allows the decrease: a pull request that needs approval, then `Inconclusive` once merged, rolled out, configured and available for `stableFor`. With the default policy (`maxDecreasePercent` 0): `Denied`, and a person reverts by hand | failed request `OOMKilled` (row 2); revert `NotAvailable` on `Verified` with the allowing policy (observed, see the note below the table), `DecreaseNotAllowed` with the default | Lab | **observed** on the lab with chart `0.5.0-rc.1` on 2026-11-14: revert request created 13:55:09, [#72](https://github.com/pkalin/shadewright-fleet/pull/72) merged 13:56:17, `Inconclusive` at 14:18:41 with `Verified=Unknown`, reason `NotAvailable`. It needs `maxDecreasePercent: 34` on `demo-memory` (set in [#69](https://github.com/pkalin/shadewright-fleet/pull/69)). Row 4 also showed that a revert target below the policy minimum is `Denied` with `BelowMinimum`. Repeated with chart `0.5.0-rc.2` the same day: [#84](https://github.com/pkalin/shadewright-fleet/pull/84) ended `Failed` with `OOMKilled` at 16:58:39, the revert [#86](https://github.com/pkalin/shadewright-fleet/pull/86) (titled `revert: ... back to 64Mi`, its body names the failed request and pull request #84) merged 17:00:53 and ended `Inconclusive` at 17:22:24, again `NotAvailable`. The two requests queued behind #84 kept waiting through its verification and ended `Denied` with `PreviousValueMismatch` when it failed |
 | 11 | A plan Shadewright knew was stale is merged by a person | `make scenario-oom CLUSTER=lab`; once the pull request is open, change the policy `demo-memory` (any change of its generation makes the plan stale), then merge the pull request before the executor closes it (the freshness check runs about every five minutes), or with a Git App that may not close pull requests (#199) | `Inconclusive`, never `Succeeded`. With verification on, a failure still ends `Failed` | `StalePlanMerged`; `PlanFresh` stays `False` with the stale reason (`PolicyChanged`) | Lab | new scenario needed; timing dependent; the circuit breaker counts it as no outcome Observed with `claude-haiku-5-5` through the Anthropic provider, chart `0.5.0-rc.4`, 2026-11-15 ([#97](https://github.com/pkalin/shadewright-fleet/pull/97)): the policy `demo-memory` was changed after approval and the pull request merged six seconds later; the request recorded `PlanFresh=False`/`PolicyChanged` at the merge ([shadewright#753](https://github.com/pkalin/shadewright/pull/753)) and ended `Inconclusive` with `Verified=Unknown`/`StalePlanMerged` at 02:03:24 UTC. |
 | 12 | The render of the build needs more than the limits | a Kustomization path whose build is over a limit of the render check (4 MiB of input, 4,096 YAML documents, 1,024 objects), the target's file inside it | `NeedsIntervention` | `TooLarge`: on `PolicyAllowed` (`Unknown`, no plan made) for input over the limits, on `PullRequestOpened` or `Approved` (`False`) for a render over 1,024 objects. A build that fits the input limits but needs more memory or CPU than the render's own bounds is refused the same way only after #614 (pull request 711, open on 2026-11-14) | Lab | after #614 for the resource-bound case; the input-limit case exists in the code today; new scenario needed |
-| 13 | One fault, one Incident: the kubelet's consequences group under the cause | `make scenario-oom CLUSTER=lab` and no more: the `OOMKilled` kill is followed by `BackOff` and readiness `Unhealthy` events of the `web` container | one Incident for `demo/web` with `OOMKilled` as its cause and the `BackOff` and `Unhealthy` events absorbed on it (`status.absorbed`), one analysis, at most one request (the row 1 request) | no phase of its own: the count is the result, not a second Incident for `BackOff` or `Unhealthy`, a second analysis or a second request. ADR-0039 | Lab | exists (`oom`); the operator checks the count in `TestGroupingOOMOpensOneIncident` ([shadewright#795](https://github.com/pkalin/shadewright/issues/795)); not **observed** on the lab since the grouping rule ([shadewright#432](https://github.com/pkalin/shadewright/issues/432) saw the events open on their own) |
-| 14 | A failed readiness probe during a start opens nothing | `startup-probe` changes no file (see its README): a new `demo/worker` pod fails its readiness probe for a few seconds while it starts, as when KEDA scales `worker` up, and is never restarted | nothing opens: no Incident, no analysis, no request | none: the collector skips the probe failure as part of the pod's start (design 3.1, shadewright#726), so there is no request to take a phase. ADR-0039 | Lab | exists (`startup-probe`); the operator checks it in `TestGroupingStartupProbeOpensNothing` ([shadewright#795](https://github.com/pkalin/shadewright/issues/795)); the earlier run that opened an Incident on this event is in the scenario's README |
+| 13 | One fault, one Incident: the kubelet's consequences group under the cause | `make scenario-slowstart-oom CLUSTER=lab` and no more, run **three times** with a clean-up between runs (see "Rows 13 to 17" below). Needs [#105](https://github.com/pkalin/shadewright-fleet/pull/105) merged (the `slowstart` workload). Precondition for each run: an `OOMKilled` in the container status of a `slowstart` pod, a `BackOff` Warning event for it, and a Warning `Unhealthy` event with a note starting `Readiness probe failed` for the restarted container. Without all three the run is **not tested** | one Incident for `demo/slowstart` with `OOMKilled` as its cause (`status.cause` true) and the consequences that did occur in `status.absorbed` (`BackOff` and `Unhealthy`), one analysis, at most one request (it ends `Denied`: the policy `demo-memory` lists `apps/demo/*-deployment.yaml` only) | no phase of its own: the count is the result, not a second Incident for `BackOff` or `Unhealthy`, a second analysis or a second request. ADR-0039 | Lab | exists (`slowstart-oom`, after #105); the operator checks the count in `TestGroupingOOMOpensOneIncident` ([shadewright#795](https://github.com/pkalin/shadewright/issues/795)); the pod showed `OOMKilled`, `BackOff` and the readiness failure on a Kind cluster (2026-11-16), **not run** on the lab since the grouping rule ([shadewright#432](https://github.com/pkalin/shadewright/issues/432) saw the events open on their own). Since [#101](https://github.com/pkalin/shadewright-fleet/pull/101) `web` has a `startupProbe` and gives no readiness `Unhealthy`, which is why this row uses `slowstart` (see below) |
+| 14 | A failed readiness or startup probe during a start opens nothing | `startup-probe` changes no file (see its README), and needs [#105](https://github.com/pkalin/shadewright-fleet/pull/105) merged (the `slowstart` workload): delete the `demo/slowstart` pod (or `kubectl -n demo rollout restart deploy/slowstart`) so that a new pod starts. Precondition: the new pod has a Warning event with reason `Unhealthy` whose note starts `Readiness probe failed`, which `slowstart` gives at every start (see "Rows 13 to 17" below). Without it the row is **not tested**, not passed | nothing opens: no Incident, no analysis, no request | none: the collector skips the probe failure as part of the pod's start (design 3.1, shadewright#726), so there is no request to take a phase. ADR-0039 | Lab | exists (`startup-probe`); the operator checks it in `TestGroupingStartupProbeOpensNothing` ([shadewright#795](https://github.com/pkalin/shadewright/issues/795)); the earlier run that opened an Incident on this event (on `worker`) is in the scenario's README; `slowstart` showed the event at every start of four pods on a Kind cluster ([#105](https://github.com/pkalin/shadewright-fleet/pull/105)); **not run** on the lab with the agent |
+| 15 | A consequence Incident already open is folded into a later cause | `web` readiness fails with no kill first (`POST /readyz/disable`), then `make scenario-oom CLUSTER=lab` within 15 minutes of that Incident's creation (steps below). Precondition: when the cause Incident appears, the consequence Incident is `Open`, `Analyzing` or `Proposed` and none of its requests has a pull request. Otherwise **not tested** | the consequence Incident ends `Resolved` with condition `Lifecycle` reason `FoldedIntoCause` and `status.foldedInto` naming the cause Incident; the cause stays open | none: an Incident outcome, not a request phase. ADR-0039 points 12 to 15 | Lab | new row; the fold is built ([shadewright#793](https://github.com/pkalin/shadewright/issues/793), merged on `main`); the operator checks it in its envtest suite; **not run** on the lab, and the timing is tight (see below) |
+| 16 | The request of a folded Incident is cancelled | the request of row 15's `Unhealthy` Incident is held before its pull request with the kill switch (`spec.paused`), the Incident is folded while it waits, then the pause is released (steps below) | the request ends `Cancelled`; its slot under `maxConcurrentRemediations` is free at once, its target lock after the next read of its branch finds no open pull request of the change; a pull request of its own found open is closed first. No pull request is opened | `IncidentFolded`, on condition `PullRequestOpened` `False` | Lab | needs [shadewright#816](https://github.com/pkalin/shadewright/pull/816), **open** on 2026-11-16; the operator checks it in `internal/controller/pullrequest_test.go`; **not run** on the lab; the pause holds the window open on purpose (steps below) |
+| 17 | The request of a deleted Incident is cancelled | delete the Incident of a request right after the request is created, before its pull request opens (steps below) | as row 16 | `IncidentGone`, on condition `PullRequestOpened` `False` (also when the Incident was deleted and opened again under the same name: another UID) | Lab | needs [shadewright#816](https://github.com/pkalin/shadewright/pull/816), **open** on 2026-11-16; **not run** on the lab |
 
 Row 10 expected `RevertApplied` for the revert request, and that was wrong for the leak. The revert restores the limit
 that the leak also kills, so the pod is killed again at the restored value and the verification has no clear data: the
@@ -53,6 +56,249 @@ Rows 1 and 6 use `oom` unchanged. Row 6 is also the case the `statefulset-oom` a
 give; one is enough. Row 1 for KEDA is not a `Succeeded` row: merging the pull request of `keda-at-ceiling` ends
 `Inconclusive` with `CheckNotAvailable` (see row 8). The scenarios of rows 3, 4 and 9 render: the harness checks that with
 `make check-scenarios`, and the new objects are plain manifests with one object per file (ADR-0012).
+
+## Rows 13 to 17: preconditions and steps
+
+Incidents and requests are in `shadewright-system`; the kubelet's events are in `demo`. A row counts only when its
+precondition was observed and written down. A row whose precondition is not met is **not tested**: say so in the run
+record, never "passed". Times in these rows are estimates from the earlier runs, not measured on them. Nothing opening is the expected result of rows 13 (for the consequences) and 14, so a missing
+symptom looks the same as a working rule; the precondition is what tells them apart.
+
+### What the `startupProbe` changed (rows 13 and 14)
+
+Since [#101](https://github.com/pkalin/shadewright-fleet/pull/101) `web`, `worker` and `cache` (and every scenario copy
+of `web`) have a `startupProbe` on `/readyz` (3 s initial delay, every 2 s, 30 failures allowed). The Kubernetes pod
+lifecycle page says: "If a startup probe is configured, Kubernetes does not execute liveness or readiness probes until
+the startup probe succeeds" (read on 2026-11-16). So:
+
+- Row 13. In the `oom` scenario `web` is killed within seconds of starting (see its README), before or soon after the
+  first startup probe, so a readiness `Unhealthy` is not certain there. The row therefore uses `slowstart`
+  ([#105](https://github.com/pkalin/shadewright-fleet/pull/105), scenario `slowstart-oom`): no `startupProbe`, its
+  port opens 20 seconds after the container starts, so after each kill the restarted container fails its readiness
+  probe with connection refused until the next kill. The order is the kill, the `BackOff` of the kubelet, then
+  `Readiness probe failed`. All three are the precondition.
+- Row 14. `worker` cannot fail a readiness probe at start any more. Its only `Unhealthy` at start would be a failed
+  startup probe, and only if podinfo has not opened its port 3 s after the container starts, which it normally has. So
+  the row uses `slowstart` ([#105](https://github.com/pkalin/shadewright-fleet/pull/105)): every pod start logs
+  `Readiness probe failed ... connection refused` and the pod then becomes Ready. The precondition still tells a working
+  rule from an absent symptom.
+- Merge order: #105 before this change. The scenario `slowstart-oom` replaces a file of `apps/slowstart/`, which exists
+  on `main` only after #105, so `make check-scenarios` fails here until it is merged.
+
+### Row 13: run three times
+
+Run it three times, each from a clean state (see "Running rows one after another"). One run is one order of arrival of
+the kill, the `BackOff` events and the Incident; the grouping rule has to hold for each of them.
+
+1. Delete the requests and Incidents; `make scenario-slowstart-oom CLUSTER=lab`.
+2. Precondition, from about two minutes after the switch (the `BackOff` comes with the second restart, the readiness failures with every restart):
+   `kubectl -n demo get events --field-selector type=Warning,reason=BackOff -o custom-columns=LAST:.lastTimestamp,POD:.involvedObject.name,NOTE:.message`
+   must list a `slowstart-` pod, and
+   `kubectl -n demo get pods -l app.kubernetes.io/name=slowstart -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[0].lastState.terminated.reason}{"\n"}{end}'`
+   must show `OOMKilled` for it. Also list `reason=Unhealthy` the same way: a note starting `Readiness probe failed` must be there. The row is **not tested** if any of the three is missing. Events are short-lived: read them in the first minutes.
+3. Wait 10 minutes (the analysis came about 2.5 minutes after the symptom in the earlier lab runs, plus the gate).
+4. Record, per run:
+   - the Incidents of the subject:
+     `kubectl -n shadewright-system get incidents -o custom-columns=NAME:.metadata.name,REASON:.spec.reason,PHASE:.status.phase,CAUSE:.status.cause`
+     Expected: one Incident for the kill with `CAUSE` true and none with reason `BackOff` or `Unhealthy`;
+   - the cause Incident's `status.absorbed` (`kubectl -n shadewright-system get incident <name> -o jsonpath='{.status.absorbed}'`):
+     each `reason`, its `count` and `lastSeen`. `BackOff` and `Unhealthy` must be there (the precondition);
+   - the requests: `kubectl -n shadewright-system get remediationrequests`: at most one (a proposal for `slowstart` is
+     `Denied` by the policy, which is no failure of this row);
+   - the analyses taken from the daily budget (the analyzer's budget ConfigMap in `shadewright-system`, read before the
+     switch and after the request exists; its name was not checked for this page), expected one.
+5. The row fails for the run if a second Incident opened for `BackOff` or `Unhealthy`, a second analysis ran or a second
+   request exists. Do not repeat a failed run until it passes: record the counts and stop the row.
+
+The model does not see the tally yet ([shadewright#796](https://github.com/pkalin/shadewright/issues/796) is not
+built), so a proposal says nothing about `status.absorbed`. The counts are read from the Incident only.
+Time: about 15 minutes a run, including the clean-up.
+
+### Row 14: precondition and outcome
+
+1. `make scenario-startup-probe CLUSTER=lab` (a reset of the tree: the `slowstart-oom` of row 13 must not be on), then
+   `kubectl -n demo get pods -l app.kubernetes.io/name=slowstart`, then delete the pod (or
+   `kubectl -n demo rollout restart deploy/slowstart`) so that a new one starts.
+2. Precondition, within the first minute:
+   `kubectl -n demo get events --field-selector type=Warning,reason=Unhealthy,involvedObject.name=<the new pod> -o custom-columns=LAST:.lastTimestamp,NOTE:.message`
+   must show a note that starts `Readiness probe failed` (about 7 failures with connection refused in the first 20 seconds,
+   then the pod is Ready). Try up to three pod starts.
+3. No event on any of them: the row is **not tested**. Do not go on to step 4.
+4. Event seen: wait 10 minutes (2 minutes of the collector's hold, one minute of settle grace, and the gate) and check
+   that `kubectl -n shadewright-system get incidents` has none for `slowstart`, and that the analyses taken from the budget
+   did not move. That is the pass.
+
+Time: 12 minutes with the event, 5 without.
+
+The `slowstart` pod shows `Readiness probe failed` at every start, so the event is expected. If it is missing, the
+workload is not the one of #105: the row is **not tested**.
+
+### Row 15: a consequence Incident already open is folded into a later cause
+
+The fold needs the consequence Incident to exist first, which the normal order (the kill comes first) prevents.
+Untested on the lab; the steps below are the plan.
+
+1. Clean up. `kubectl -n demo port-forward deploy/web 9898:9898` and, in another terminal,
+   `curl -s -X POST localhost:9898/readyz/disable` (`POST /readyz/disable` is in podinfo 6.17.0, `pkg/api/http/server.go`).
+   The pod stays Ready for about 30 s (3 failures at 10 s), then not; no kill, so the pod status shows no cause.
+2. The `Unhealthy` Incident opens after the collector's hold of 2 minutes and the gate's second sighting, about five
+   minutes in:
+   `kubectl -n shadewright-system get incidents -o custom-columns=NAME:.metadata.name,REASON:.spec.reason,PHASE:.status.phase,CREATED:.metadata.creationTimestamp`
+3. Precondition: its phase is `Open`, `Analyzing` or `Proposed`, none of its requests has a pull request, and less than
+   15 minutes have passed since `CREATED` (the gate's `RecurWithin`; two `creationTimestamp`s are compared, no clock of
+   ours). Do it at once: its analysis ends about 2.5 minutes after it opens, and an `Escalated` Incident is not
+   folded (ADR-0039 point 12, build notes of #793). If it is `Escalated` or `Resolved`, the row is **not tested**.
+   [NEEDS CLARIFICATION: no way to hold the analyses back on the lab was found; the cap at 0 might end the Incident
+   `Escalated` through `DailyBudgetReached`, which was not checked.]
+4. `make scenario-oom CLUSTER=lab`. The cause Incident opens about 40 seconds after the commit (the `oom` README).
+5. Expected, seconds after the cause Incident is created:
+   `kubectl -n shadewright-system get incident <the Unhealthy Incident> -o jsonpath='{.status.phase}{" "}{.status.foldedInto}{"\n"}{.status.conditions}'`
+   shows `Resolved`, `status.foldedInto` with the cause Incident's name and UID, and condition `Lifecycle` with reason
+   `FoldedIntoCause`. The cause Incident has `status.cause` true. The folded Incident does not go back to `Proposed` or
+   to `Escalated` (the closure rules skip it).
+
+Time: 15 to 25 minutes (about 5 for the first Incident, then the switch and the fold).
+
+### Rows 16 and 17: the cancel of a request whose Incident was folded or deleted
+
+Both need [shadewright#816](https://github.com/pkalin/shadewright/pull/816), **open** on 2026-11-16; on `main` of the
+operator the request goes on to open its pull request. The executor reads the Incident live as the last step before it
+opens the pull request (ADR-0039 points 21 and 22). So the Incident must be folded or deleted between the request's
+creation and the open, which is under a minute (`AwaitingApproval` came about a minute after a request in the lab run
+of 2026-11-04, `oom` README). Row 16 holds that window open with the kill switch; row 17 races it.
+
+Expected for both, once #816 is merged and in the chart under test:
+
+- `kubectl -n shadewright-system get remediationrequest <name> -o jsonpath='{.status.phase}{" "}{.status.conditions[?(@.type=="PullRequestOpened")].reason}{"\n"}'`
+  prints `Cancelled IncidentFolded` (row 16) or `Cancelled IncidentGone` (row 17), the condition `PullRequestOpened`
+  `False`.
+- No pull request: `gh pr list -R pkalin/shadewright-fleet --state open` has none for the request. The request's branch
+  and its commit are left on the fleet repository.
+- The slot under `maxConcurrentRemediations` is free at once. The target lock is not released by the cancel: the
+  request has no recorded pull request, so one may exist, and the lock is kept until the next read of the branch finds
+  no open pull request that may deliver the change (`status.holdsTarget` stays true until then, then false). A pull
+  request of the request's own that the read finds open is closed first and recorded in `status.pullRequest`; one a
+  person opened from the branch is never closed and keeps the lock. After the lock is released, the next request for the
+  same field is decided as usual.
+- The Incident of a folded request does not end `Escalated`.
+
+Row 17 steps. Start this in a second terminal before the switch, so the delete follows the request at once:
+
+```
+until n=$(kubectl -n shadewright-system get remediationrequests -o jsonpath='{.items[0].spec.incidentRef.name}' 2>/dev/null) && [ -n "$n" ]; do sleep 1; done; kubectl -n shadewright-system delete incident "$n"
+```
+
+then `make scenario-oom CLUSTER=lab` from a clean state. Precondition: the request was still before its pull request
+when the Incident was deleted (no `PullRequestOpened` `True`). If it already has a pull request, it runs its course
+(close that pull request), and the row is **not tested**. Time: 3 to 5 minutes from the switch to `Cancelled`, a further
+reconcile for the lock.
+
+Row 16 steps. The kill switch holds a request before its first Git write, so the request waits with no branch and no
+pull request, and the Incident can be folded while it waits. The operator's docs say it: while `spec.paused` is true the
+executor pushes no branch and opens no pull request, a request decided while paused waits, shows the condition
+`WritesPaused` and goes on from where it stopped when the pause ends (`docs/emergency.md`, "Stop new Git writes";
+design 5.4 and 6, "What a held-back request looks like"). The live read of the Incident comes after the branch and the
+commit, so it happens after the release. Pausing does not stop analysis or Incidents (`docs/emergency.md`).
+
+1. Clean up. Pause Git writes before anything starts:
+   `kubectl patch remediationsettings default --type merge -p '{"spec":{"paused":true}}'`
+2. Do row 15 steps 1 to 3: the `web` readiness failure with no kill, and its `Unhealthy` Incident (`Open`, `Analyzing`
+   or `Proposed`).
+3. Wait for a request for that Incident (the analysis ends about 2.5 minutes after the Incident opens):
+   `kubectl -n shadewright-system get remediationrequests -o custom-columns=NAME:.metadata.name,INCIDENT:.spec.incidentRef.name,PHASE:.status.phase`
+   Precondition: it exists, its condition `WritesPaused` is `True`
+   (`kubectl -n shadewright-system get remediationrequest <name> -o jsonpath='{.status.conditions[?(@.type=="WritesPaused")].status}'`)
+   and `gh pr list -R pkalin/shadewright-fleet --state open` has no pull request of it. If the analysis proposed nothing
+   (no request) or a pull request already exists, the row is **not tested** (release the pause, step 6).
+4. `make scenario-oom CLUSTER=lab`. The cause Incident opens about 40 seconds after the commit. Row 15 step 5 shows the
+   `Unhealthy` Incident `Resolved` with `FoldedIntoCause` while the request still waits.
+5. The request must still be before its pull request (`WritesPaused` `True`, no pull request, no `PullRequestOpened`
+   `True`). Otherwise the row is **not tested**.
+6. Release the pause, always, whatever the result:
+   `kubectl patch remediationsettings default --type merge -p '{"spec":{"paused":false}}'`
+   The request goes on, pushes its branch, reads the Incident and ends as in the expected list above. Read its phase and
+   condition with the command above (`Cancelled IncidentFolded`).
+
+The pause is cluster-wide: no other request writes to Git until step 6, so do this row alone. A pause set while a
+request is already between two writes does not stop the one in flight (`docs/emergency.md`), which is why the pause is
+set before the request exists, in step 1. This is not run on the lab: the docs say the request waits at its first write and that the Incident read follows the commit, and the run is what confirms that `WritesPaused` shows before the fold and the cancel comes after the release. Time: about 10 minutes after row 15's own
+5, plus the release.
+
+## Order of a full run
+
+One scenario at a time: `make scenario-<name>` commits the scenario's files over `apps/demo/` and one request is
+active at a time (`maxConcurrentRemediations` 1), so rows cannot overlap. What can be arranged is the order. The times
+come from the observed rows above (merge to end) plus about four minutes for the pull request; a time marked "not
+measured" is an estimate.
+
+| Order | Row | Workload | Time | Why here |
+| --- | --- | --- | --- | --- |
+| 1 | 2, then 10 | `web` (`oom-leak`) | about 45 minutes | the kill after the merge (9 minutes) and the revert request (22 minutes to `Inconclusive` after its merge) are waits; the revert needs the failed request's outcome |
+| 2 | 4 | `web` (`rollout-blocked`) | about 30 minutes | `Failed` 21 to 23 minutes after the merge |
+| 3 | 9 | `cache` (`statefulset-partition`) | up to 30 minutes, not measured | the timeout is 21 minutes from the rollout |
+| 4 | 1 | `web` (`oom`) | about 20 minutes | 13 minutes after the merge |
+| 5 | 6, 11 | `web` (`oom`) | about 10 minutes each | short, and 11 is timing dependent |
+| 6 | 8, then 5 | `worker` (`keda-ceiling-persists`, `keda-load-burst`) | about 10 and 10 minutes | clear before the switch (the HPA condition rule below) |
+| 7 | 7 | `web` | about 30 minutes, not measured | two procedures |
+| 8 | 12 | not decided | 10 minutes, not measured | the resource-bound case needs #614 |
+| 9 | 13 (three times), 15, 17, 16 | `slowstart` (`slowstart-oom`) for 13, `web` (`oom`) for the others | about 45, 25, 5 and 5 minutes | short, but each needs a clean state; 16 holds the kill switch and releases it |
+| 10 | 14 | `slowstart` | 5 to 12 minutes | no scenario file; the precondition is the event |
+| 11 | 3 | `web` (`delivery-blocked`) | about 70 minutes | last: the delivery window is one hour from the merge, no commit may go to the cluster branch during it, and the failed merge commit blocks later commits until it is reverted |
+
+Row 3 is the longest and is last, not first, for that reason: starting a scenario for the next row during its window
+would end it `Inconclusive` with `DeliveryBlocked`. Added up, a full run is about six hours of waiting.
+
+Rows that share a workload, and what clears them between rows:
+
+- `web`: rows 1, 2, 3, 4, 6, 7, 10, 11, 12, 15, 16 and 17. They all end in an `OOMKilled` symptom on the same
+  workload, so within 24 hours of a resolution the second one is `Recurred` and escalated, not analyzed. Delete the
+  RemediationRequests and Incidents in `shadewright-system` between two of them, after Flux applied the switch and the
+  pods of the previous scenario are gone ("Running rows one after another").
+- `slowstart`: rows 13 and 14 (needs #105). Row 13 leaves Incidents for `slowstart` behind: delete them before row 14 (row 14 resets the tree with `startup-probe`).
+- `worker`: rows 5 and 8. Rows 5 and 8 have a symptom that is a condition that stays unchanged (the HPA's
+  `ScalingLimited`): clear before the switch.
+- `cache`: row 9 alone.
+
+## Rows to run again after a new release candidate
+
+A new candidate does not mean every row. The table says which rows read what a package decides; it is a rule of
+thumb from what each row's outcome depends on, not a measured dependency. A change outside every package below (docs,
+tests, scenarios or fleet only) needs `make check-scenarios`, not a lab run.
+
+| Changed package | Rows to run again | Because |
+| --- | --- | --- |
+| `redact` | 1, 13 | text that goes to the model, the pull request and the status: the full path of row 1, and the analysis of row 13 |
+| `policy` | 1, 4, 6, 10, 11 | the bounds and the decrease rule (rows 1, 4, 10), the closed pull request (6) and the stale plan after a policy change (11) |
+| `gitops` (pull requests, render, source mapping, target lock) | 1, 5, 6, 11, 12, 16, 17 | everything that opens, reads or closes a pull request or reads the branch |
+| `controller` (executor phases, delivery, verification, lock) | 1 to 11, 16, 17 | every row that ends after the merge, and the cancel |
+| `collector` or `incidents` (grouping, fold, gate) | 13, 14, 15, 16, and 1 to see an Incident still open | what becomes an Incident, and how many |
+| `analysis` or the model's input | 1, 2, 8, 13, 14 | what the model sees and returns: a limit, a leak, a KEDA ceiling, one analysis per fault, no proposal for a probe |
+| chart (values, RBAC, flags) | 1, 5, 7, 17 | the install with verification on, the pull request path, the stopped verifier, and the `delete` on Incidents row 17 uses |
+
+## Analyses of a full run
+
+The daily cap is `analysis.maxAnalysesPerDay` in `infrastructure/shadewright-lab-config/remediationsettings.yaml`. A
+revert request and the deterministic steps use no analysis. Each row's analyses when the grouping rule holds:
+
+| Row | Analyses | Row | Analyses |
+| --- | --- | --- | --- |
+| 1 | 1 | 9 | 1 |
+| 2 (with 10) | 1 | 10 (the default-policy run of row 2) | 1 |
+| 3 | 1 | 11 | 1 |
+| 4 | 1 | 12 | 1 |
+| 5 | 1 | 13, three runs | 3 |
+| 6 (a second Incident for the queued request) | 2 | 14 | 0 |
+| 7 (two procedures) | 2 | 15 (the consequence and the cause) | 2 |
+| 8 | 1 | 16 | 2 |
+| | | 17 | 1 |
+
+That is 22 analyses. Row 13 now runs on `slowstart` instead of `web` and row 14 on `slowstart` instead of `worker`, so the counts are the same. If the grouping rule did not hold, one fault would open three Incidents and each would be analyzed
+(the run of 2026-11-14, [shadewright#432](https://github.com/pkalin/shadewright/issues/432)): 2 more for each of the 16
+analyses of OOM faults (rows 1, 2, 3, 4, 6 twice, 7 twice, 10, 11, 13 three times, 15, 16, 17), 32 more, so 54 for one
+pass. The release run goes through the matrix once per model provider (decided 2026-11-17: Microsoft Foundry, the
+Anthropic API and the OpenAI API), three passes in one UTC day: 162 at worst. The cap is 180: that and a margin of 18,
+about six more runs of a row. The token cap is per model: at about 7,000 tokens an analysis (the evaluation of
+2026-11-14) one pass of 60 analyses is about 420k tokens, under `maxTokensPerDay` (800000) of the model it runs on.
 
 ## Running rows one after another
 
@@ -257,7 +503,7 @@ question.
 
 ## Planned groups
 
-Not part of v0.5.0 verification. Listed so the page matches the issue.
+Not part of v0.6.0 verification. Listed so the page matches the issue.
 
 | Group | Row | Setup | Status |
 | --- | --- | --- | --- |
