@@ -7,6 +7,7 @@
 # kill the container while it sleeps. Same image, user and limits as web. Remediation PRs may change values in
 # this file in place (for example the memory limit, SetContainerMemoryLimit), so keep every value literal: no
 # patches or generators (ADR-0012).
+# SCENARIO slowstart-oom (scenarios/slowstart-oom): after its 20 second sleep podinfo loads 36 MB into memory (it needs the writable /tmp volume below, the root filesystem is read-only), and the limit is 48Mi, below what the container holds (about 54Mi). The container is killed, restarts, sleeps again and fails its readiness probe again.
 # Image: https://github.com/stefanprodan/podinfo (6.17.0, multi-arch index digest on ghcr.io); the image's
 # user "app" is uid 100, gid 101.
 apiVersion: apps/v1
@@ -47,7 +48,7 @@ spec:
           command:
             - sh
             - -c
-            - sleep 20 && exec ./podinfo --port=9898 --port-metrics=9797 --level=info
+            - sleep 20 && exec ./podinfo --port=9898 --port-metrics=9797 --level=info --stress-memory=36
           env:
             - name: PODINFO_UI_MESSAGE
               value: shadewright demo slowstart
@@ -80,7 +81,7 @@ spec:
               memory: 32Mi
             limits:
               cpu: 200m
-              memory: 64Mi
+              memory: 48Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -90,7 +91,12 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: data
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: tmp
           emptyDir:
             sizeLimit: 16Mi
