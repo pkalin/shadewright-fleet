@@ -60,10 +60,9 @@ the lab script writes with `LAB_MODEL_PROVIDER` at `make lab-up` and `make lab-p
 is `foundry`. A change of the ConfigMap changes both paths in one reconcile of `lab`, so the chart values and the
 settings never come from different providers for longer than that reconcile.
 
-Limit: the `openai` variant needs a chart release that has operator ADR-0042 (`analyzer.analysis.openAICompatible`,
-provider `OpenAICompatible`). The pinned chart (v0.5.0) has neither: until `infrastructure/shadewright/ocirepository.yaml`
-moves to such a release and `schemas/` is regenerated, `scripts/render.sh` skips the schema check of that variant's
-`RemediationSettings` (marked in the script) and the lab must not select `openai`.
+The `openai` variant needs a chart release that has operator ADR-0042 (`analyzer.analysis.openAICompatible`, provider
+`OpenAICompatible`): the pinned chart (v0.6.0-rc.1) has it, and `schemas/` holds its CRDs, so the render check covers that
+variant's `RemediationSettings` like the others.
 
 ## Kind
 

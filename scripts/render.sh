@@ -32,13 +32,7 @@ fi
 status=0
 for dir in "${dirs[@]}"; do
   echo "== ${dir}"
-  skipkinds=""
-  # The CRD schemas in schemas/ come from the pinned chart (v0.5.0), which has no provider OpenAICompatible (operator
-  # ADR-0042, unreleased). The openai variant's settings cannot pass the strict schema until the chart pin moves to a
-  # release that has it and schemas/ is regenerated; its HelmRelease values and the policies are still checked.
-  # Remove this skip then (README, "Model provider").
-  [ "$dir" != infrastructure/shadewright-lab-config/openai ] || skipkinds="RemediationSettings"
-  render_dir "$dir" "$dir" "$skipkinds" || status=1
+  render_dir "$dir" "$dir" "" || status=1
 done
 
 # Every Flux Kustomization in clusters/ must point at a directory of this repository that has a kustomization. A path may
