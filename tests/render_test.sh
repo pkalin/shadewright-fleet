@@ -24,7 +24,7 @@ export T_RENDERED="$T/rendered.yaml" SRC_ROOT
 . "$SRC_ROOT/scripts/lib.sh"
 KUSTOMIZE=kustomize KUBECONFORM=kubeconform
 
-cfg="$SRC_ROOT/infrastructure/shadewright-lab-config"
+cfg="$SRC_ROOT/infrastructure/shadewright-lab-config/base"
 
 run render_dir "$cfg"
 expect_ok "the lab configuration passes with its samples" "Valid: 3, Invalid: 0"

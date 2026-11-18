@@ -20,8 +20,10 @@ clusters/lab/           Flux entry point, applied by the Flux configuration from
 clusters/kind/          the same for a Kind cluster (scripts/kind.sh), without Azure substitutions
 infrastructure/         cluster add-ons and the namespaces apps/ needs
   shadewright/          the agent from the released Helm chart: OCIRepository (digest, cosign) and HelmRelease
-  shadewright-lab/      lab values for it (workload identity client IDs), applied by clusters/lab/shadewright.yaml
-  shadewright-lab-config/  the agent's RemediationSettings and demo-memory policy, applied by clusters/lab/shadewright-config.yaml
+  shadewright-lab/      lab values for it: base/ (workload identity client IDs and the rest every provider shares) and one
+                        variant per model provider (foundry, anthropic, openai), applied by clusters/lab/shadewright.yaml
+  shadewright-lab-config/  the agent's RemediationSettings and policies: base/ and the same three variants (the models),
+                        applied by clusters/lab/shadewright-config.yaml
   namespaces/           the demo Namespace, created before anything binds in it
   keda/                 KEDA (upstream chart, one replica per component)
   prometheus/           minimal Prometheus: server, kube-state-metrics, kubelet and cAdvisor, 24h retention
@@ -37,6 +39,31 @@ scripts/tools.env       every pinned tool version and checksum (make tools insta
 
 Environment values (tenant and identity client IDs, endpoints, the operator namespace) are never in this
 repository: they arrive as Flux `postBuild` substitutions (`${VAR}`) from the lab's Terraform.
+
+## Model provider
+
+The lab runs the agent against one of three model providers, chosen when the lab is brought up or later with one
+command, never by a commit here: `foundry` (the default: Microsoft Foundry, the analyzer's workload identity, no key),
+`anthropic` (the Anthropic API) and `openai` (the OpenAI API through the OpenAI-compatible provider, operator ADR-0042).
+Each has a directory under `infrastructure/shadewright-lab/` (the chart values) and under
+`infrastructure/shadewright-lab-config/` (the `RemediationSettings` models); the parts every provider shares are in
+`base/` next to them. A variant holds only its provider's values: the triage model, the provider's chart values and its
+`analysis.models.triage`. The Secrets of the keys (`shadewright-anthropic`, `shadewright-openai`, key `api-key`) are
+created outside Git by shadewright-azure.
+
+How it is selected: the path of the Flux Kustomizations `shadewright` and `shadewright-config` ends in
+`${MODEL_PROVIDER:=foundry}`. The root Kustomization `lab` (created by shadewright-azure's `scripts/lab.sh`) applies
+`clusters/lab` with postBuild substitution, so it replaces that variable in the text of those two child objects before
+it applies them (a root's own `spec.path` is not substituted, but the `path` of an object it applies is only text to
+it). The value comes from the optional ConfigMap `lab-model-provider` (key `MODEL_PROVIDER`) in `flux-system`, which
+the lab script writes with `LAB_MODEL_PROVIDER` at `make lab-up` and `make lab-provider`; with no ConfigMap the default
+is `foundry`. A change of the ConfigMap changes both paths in one reconcile of `lab`, so the chart values and the
+settings never come from different providers for longer than that reconcile.
+
+Limit: the `openai` variant needs a chart release that has operator ADR-0042 (`analyzer.analysis.openAICompatible`,
+provider `OpenAICompatible`). The pinned chart (v0.5.0) has neither: until `infrastructure/shadewright/ocirepository.yaml`
+moves to such a release and `schemas/` is regenerated, `scripts/render.sh` skips the schema check of that variant's
+`RemediationSettings` (marked in the script) and the lab must not select `openai`.
 
 ## Kind
 

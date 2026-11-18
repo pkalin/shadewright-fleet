@@ -1,5 +1,7 @@
-# The agent's lab configuration: the RemediationSettings and the demo-memory RemediationPolicy, applied by the Flux
-# Kustomization "shadewright-config" (clusters/lab/shadewright-config.yaml) after the chart has installed the CRDs.
+# The agent's lab configuration that every model provider shares: the RemediationSettings without their models and the
+# two RemediationPolicies. The variants next to this directory (foundry, anthropic, openai) add the models; the Flux
+# Kustomization "shadewright-config" applies one of them (clusters/lab/shadewright-config.yaml) after the chart has
+# installed the CRDs. Each variant keeps its own render-sample.env (the same values, and MODEL_ENDPOINT for foundry).
 # Every ${VAR} is a Flux postBuild substitution that shadewright-azure (lab/flux.tf) fills from its Terraform outputs and
 # its git-ignored lab variables; nothing environment-specific is committed.
 #

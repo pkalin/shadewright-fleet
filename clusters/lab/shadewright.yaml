@@ -3,6 +3,12 @@
 # depends on it: a broken agent image must not block the demo workloads or a scenario reset. The client IDs and the model endpoint suffix are the
 # lab's values, forwarded from the parent (shadewright-azure lab/flux.tf) because substitutions apply only to the
 # Kustomization that declares them.
+#
+# The model provider: the path ends in the variant directory (foundry, anthropic or openai). The root Kustomization "lab"
+# substitutes ${MODEL_PROVIDER} in this object before it applies it (spec.path of the root itself is not substituted, the
+# path of this child object is plain text to the root). The variable comes from the optional ConfigMap lab-model-provider in
+# flux-system, which shadewright-azure's scripts/lab.sh writes (README, "Model provider"); without it the default is
+# foundry. The same variable selects infrastructure/shadewright-lab-config in shadewright-config.yaml, so the two agree.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -17,7 +23,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: fleet
-  path: ./infrastructure/shadewright-lab
+  path: "./infrastructure/shadewright-lab/${MODEL_PROVIDER:=foundry}"
   prune: true
   wait: true
   postBuild:
