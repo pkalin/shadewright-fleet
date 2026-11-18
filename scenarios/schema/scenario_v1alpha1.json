@@ -190,7 +190,7 @@
               "uniqueItems": true,
               "items": {
                 "type": "string",
-                "pattern": "^apps/demo/[a-z0-9][a-z0-9._-]*\\.yaml$"
+                "pattern": "^apps/(demo|slowstart)/[a-z0-9][a-z0-9._-]*\\.yaml$"
               }
             },
             "status": {

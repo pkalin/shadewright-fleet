@@ -1,4 +1,5 @@
-# Lab values for the Shadewright HelmRelease, applied by the Flux Kustomization "shadewright" (clusters/lab/shadewright.yaml).
+# Lab values for the Shadewright HelmRelease that every model provider shares: the base of the variants next to this
+# directory, which the Flux Kustomization "shadewright" applies (clusters/lab/shadewright.yaml).
 # Every ${VAR} is a Flux postBuild substitution that shadewright-azure (lab/flux.tf) fills from its Terraform outputs;
 # nothing environment-specific is committed. The chart sets the workload identity annotation on each ServiceAccount
 # and the label that asks the AKS webhook to inject the federated token into the pod; the two identities stay
@@ -7,25 +8,21 @@
 #   Variable             Source (shadewright-azure)                                              Used for
 #   ANALYZER_CLIENT_ID   foundation output analyzer_identity, field client_id                    analyzer.identity.azure.clientId
 #   EXECUTOR_CLIENT_ID   foundation output executor_identity, field client_id                    executor.identity.azure.clientId
-#   MODEL_ENDPOINT_SUFFIX  "." plus the host of foundation output model_endpoint                  analyzer.analysis.endpointSuffixes
 #
-# Analysis (evaluation run only, not production; operator docs/lab-oom-acceptance.md, "Evaluation run"): triageModel
-# is claude-haiku-5-5, the model ID as the Anthropic API names it, called through the Anthropic API (provider
-# Anthropic in the RemediationSettings, operator ADR-0037). anthropic.apiKey.secretName names a Secret in
-# shadewright-system with the key under the key "api-key" (the chart default secretKey). The Secret is created outside
-# Git: shadewright-azure's `make lab-up` creates it when LAB_ANTHROPIC_KEY_FILE is set. No key is in Git. The chart
-# mounts the Secret into the analyzer container only, and the volume is not optional: without the Secret the analyzer
-# pod stays in ContainerCreating (FailedMount) and the analysis does not start; the executor is not affected.
-# endpointSuffixes still lists the lab's own AI Services account host: the flag is required with triageModel, although
-# the allow-list does not apply to provider Anthropic (the endpoint is fixed to https://api.anthropic.com).
-# No escalationModel: the lab has a single triage model, so read tools (offered only to the escalation model) are off
-# and an escalation signal hands the Incident off (operator issue #80).
+# Analysis (evaluation run only, not production; operator docs/lab-oom-acceptance.md, "Evaluation run"): the model
+# provider is not set here. The lab holds one variant per provider next to this directory (foundry, anthropic, openai),
+# each a kustomization over this base that adds triageModel and the provider's own values; the Flux Kustomization
+# "shadewright" applies one of them (clusters/lab/shadewright.yaml, README, "Model provider"). Each variant says
+# how its model is reached and which Secret it needs. No escalationModel in any of them: the lab has a single triage
+# model, so read tools (offered only to the escalation model) are off and an escalation signal hands the Incident
+# off (operator issue #80).
+#
 # prometheus.url is the lab Prometheus (infrastructure/prometheus, Service port 80) as the analyzer's metrics source;
 # without it the context has no metrics and an OOM Incident is handed off with MissingData. networkPolicy.analyzer.
 # prometheus opens the analyzer's egress to that server (container port 9090), and the ingress side is the policy
 # in infrastructure/prometheus/networkpolicy-server.yaml.
 # actionPolicies names the RemediationPolicies in infrastructure/shadewright-lab-config. The daily cap lives in the
-# RemediationSettings there (analysis.maxAnalysesPerDay, 40 for the lab), with the endpoint and deployment; the chart
+# RemediationSettings there (analysis.maxAnalysesPerDay, 180 for the lab), with the endpoint and deployment; the chart
 # has no value for it.
 # executor.reviewerHints.enabled turns reviewer hints on (operator ADR-0028, off by default) for the lab runbook
 # docs/lab-oom-hint.md. The cluster/* ruleset must require the check shadewright/review from the Shadewright App (README,
@@ -38,7 +35,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../shadewright
+  - ../../shadewright
 patches:
   - target:
       kind: HelmRelease
@@ -55,12 +52,6 @@ patches:
             prometheus:
               url: http://prometheus-server.prometheus.svc
             analysis:
-              triageModel: claude-haiku-5-5
-              anthropic:
-                apiKey:
-                  secretName: shadewright-anthropic
-              endpointSuffixes:
-                - "${MODEL_ENDPOINT_SUFFIX}"
               actionPolicies:
                 SetContainerMemoryLimit: demo-memory
                 AdjustKedaMaxReplicas: demo-keda

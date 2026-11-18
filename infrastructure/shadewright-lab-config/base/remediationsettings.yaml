@@ -1,0 +1,43 @@
+# The lab's RemediationSettings (operator config/samples/lab), for an evaluation run with the model analysis on
+# (infrastructure/shadewright-lab). maxAnalysesPerDay caps the model calls per UTC day; set it to 0 here to stop
+# the analysis without a chart change. The model provider is not set here: analysis.models comes from the variant
+# next to this directory that the Flux Kustomization "shadewright-config" applies (foundry, anthropic or openai,
+# clusters/lab/shadewright-config.yaml). The settings hold no key: Foundry uses the analyzer's workload identity,
+# the other two read a key from a mounted file (a Secret created outside Git, see infrastructure/shadewright-lab).
+# The executor signs with Key Vault through its workload identity.
+apiVersion: remediation.shadewright.io/v1alpha1
+kind: RemediationSettings
+metadata:
+  name: default
+spec:
+  paused: false
+  # Cap on active requests (before the merge): more wait in Pending with the condition Queued.
+  maxConcurrentRemediations: 1
+  # The KEDA module: its symptom sources (trigger errors, not ready, replica ceiling) open Incidents only while it is
+  # listed here (operator #478, since v0.3.0-rc.5); detected alone it stays inactive. Needed by keda-at-ceiling and
+  # broken-keda-trigger.
+  modules:
+    integrations: [keda]
+  repositories:
+    - name: fleet
+      url: "${FLEET_REPOSITORY_URL}"
+      targetBranch: "${FLEET_BRANCH}"
+      provider: GitHub
+      github:
+        appClientID: "${GITHUB_APP_CLIENT_ID}"
+        # The number with the prefix "id" that clusters/lab/shadewright-config.yaml forwards it with removed.
+        installationID: ${GITHUB_APP_INSTALLATION_ID/id/}
+        signer:
+          azureKeyVault:
+            keyID: "${GITHUB_APP_KEY_ID}"
+  analysis:
+    # Lab values for a full-day run of the scenario matrix (seventeen rows, scenarios/MATRIX.md), not a recommendation.
+    # A full run needs 22 analyses when the grouping rule holds (row 13 three times), 54 if every OOM fault opened
+    # three Incidents as on 2026-11-14 (operator #432, one OOM opened three and each was analyzed). About 7,000 tokens
+    # per analysis on Claude Haiku 5.5 in the evaluation of 2026-11-14: one pass of 60 analyses is
+    # about 420k tokens, under the token cap below (800000). The arithmetic is in scenarios/MATRIX.md, "Analyses of a
+    # full run".
+    # 180 since 2026-11-17: the release run goes through the matrix once per model provider (three passes in one
+    # day), 3 x 54 analyses at worst and a margin of 18. The token cap below is per model, so it stays.
+    maxAnalysesPerDay: 180
+    # models: see the variant (the triage model; no escalation model, the lab has one triage model, operator issue #80).

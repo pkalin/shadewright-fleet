@@ -99,10 +99,12 @@ scenario() { # scenario <name> [render] [extra]: README and expected.yaml
 git init -q --bare "$REMOTE_DIR"
 git init -q "$WORK"
 cd "$WORK"
-mkdir -p scripts apps/demo scenarios
+mkdir -p scripts apps/demo apps/slowstart scenarios
 cp "$SRC_ROOT"/scripts/*.sh "$SRC_ROOT/scripts/tools.env" scripts/
 cp -R "$SRC_ROOT/scenarios/schema" scenarios/schema
-printf 'resources:\n  - demo\n' >apps/kustomization.yaml
+printf 'resources:\n  - demo\n  - slowstart\n' >apps/kustomization.yaml
+printf 'resources:\n  - slow.yaml\n' >apps/slowstart/kustomization.yaml
+printf 'kind: Deployment\nmetadata:\n  name: slow\n# healthy\n' >apps/slowstart/slow.yaml
 printf 'resources:\n  - web.yaml\n  - worker.yaml\n' >apps/demo/kustomization.yaml
 printf 'kind: Deployment\nmetadata:\n  name: web\n# healthy\n' >apps/demo/web.yaml
 printf 'kind: Deployment\nmetadata:\n  name: worker\n# healthy\n' >apps/demo/worker.yaml
@@ -114,6 +116,20 @@ printf 'kind: Deployment\nmetadata:\n  name: web\n# broken by good\n' >scenarios
 scenario other
 mkdir -p scenarios/other/apps/demo
 printf 'kind: Deployment\nmetadata:\n  name: worker\n# broken by other\n' >scenarios/other/apps/demo/worker.yaml
+# A scenario may replace a file of apps/slowstart/ too, under the same rules as apps/demo/.
+scenario slow-on
+mkdir -p scenarios/slow-on/apps/slowstart
+printf 'kind: Deployment\nmetadata:\n  name: slow\n# broken by slow-on\n' >scenarios/slow-on/apps/slowstart/slow.yaml
+scenario slow-new-file
+mkdir -p scenarios/slow-new-file/apps/slowstart
+printf 'kind: ConfigMap\n' >scenarios/slow-new-file/apps/slowstart/extra.yaml
+scenario slow-drops-base
+mkdir -p scenarios/slow-drops-base/apps/slowstart
+printf 'kind: Deployment\nmetadata:\n  name: slow\n# broken by slow-drops-base\n' >scenarios/slow-drops-base/apps/slowstart/slow.yaml
+printf 'resources:\n  - extra.yaml\n' >scenarios/slow-drops-base/apps/slowstart/kustomization.yaml
+scenario slow-outside
+mkdir -p scenarios/slow-outside/apps/other
+printf 'kind: Deployment\n' >scenarios/slow-outside/apps/other/x.yaml
 scenario invalid fails
 mkdir -p scenarios/invalid/apps/demo
 printf 'kind: Deployment\nshadewright-test: invalid\n' >scenarios/invalid/apps/demo/web.yaml
@@ -229,6 +245,9 @@ for case_ in "outside:is outside apps/demo/" "linked:is not a regular file" "ext
   "new-unlisted:kustomization.yaml does not list extra.yaml" \
   "new-dir:apps/demo/sub/ does not exist on the base commit" \
   "drops-base:does not list worker.yaml, which apps/demo/kustomization.yaml on the base commit lists" \
+  "slow-outside:is outside apps/demo/ and apps/slowstart/" \
+  "slow-new-file:apps/slowstart/extra.yaml is new: the scenario must also replace apps/slowstart/kustomization.yaml" \
+  "slow-drops-base:does not list slow.yaml, which apps/slowstart/kustomization.yaml on the base commit lists" \
   "block-render:cannot read render"; do
   name="${case_%%:*}"
   run env CLUSTER=kind scripts/scenario.sh apply "$name"
@@ -242,6 +261,8 @@ run env CLUSTER=kind DRY_RUN=1 scripts/scenario.sh apply new-listed
 expect_ok "a new file listed in the scenario's kustomization.yaml is accepted" "not pushed"
 run env CLUSTER=kind DRY_RUN=1 scripts/scenario.sh apply quoted
 expect_ok "quoted values with a comment are read exactly" "nothing to push"
+run env CLUSTER=kind DRY_RUN=1 scripts/scenario.sh apply slow-on
+expect_ok "a scenario that replaces a file of apps/slowstart/ is built" "not pushed"
 
 # --- a missing cluster branch is never created ------------------------------------------------------------------------
 
@@ -363,7 +384,8 @@ run scripts/scenario.sh check
 expect_fail "check reports every broken fixture, not only the first" "scenarios/outside/infrastructure/x.yaml is outside apps/demo/"
 check "check reports the later ones too" sh -c "printf '%s' \"\$1\" | grep -q 'new-dir/apps/demo/sub/extra.yaml'" _ "$OUT"
 git rm -rq scenarios/outside scenarios/linked scenarios/extra-field scenarios/unmarked scenarios/misnamed scenarios/no-readme \
-  scenarios/new-file scenarios/new-unlisted scenarios/new-dir scenarios/block-render scenarios/drops-base
+  scenarios/new-file scenarios/new-unlisted scenarios/new-dir scenarios/block-render scenarios/drops-base \
+  scenarios/slow-outside scenarios/slow-new-file scenarios/slow-drops-base
 git commit -q -m "drop the invalid fixtures"
 run scripts/scenario.sh check
 expect_ok "check passes on valid scenarios" "== scenarios/good"

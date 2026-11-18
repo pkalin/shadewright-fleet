@@ -1,0 +1,29 @@
+# Model provider Foundry (the lab default): the triage model is the foundation's own deployment "triage" in Microsoft
+# Foundry, reached with the analyzer's workload identity (no key, no Secret). triageModel is the model as its replies
+# name it (<name>-<version>, foundation/terraform.tfvars.example in shadewright-azure). endpointSuffixes lists the lab's
+# own AI Services account host only, so no other resource receives the context or a token.
+# The matching settings are in ../../shadewright-lab-config/foundry.
+#
+#   Variable               Source (shadewright-azure)                                     Used for
+#   MODEL_ENDPOINT_SUFFIX  "." plus the host of foundation output model_endpoint          analyzer.analysis.endpointSuffixes
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: HelmRelease
+      name: shadewright
+    patch: |-
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: shadewright
+        namespace: flux-system
+      spec:
+        values:
+          analyzer:
+            analysis:
+              triageModel: gpt-5.4-mini-2026-03-17
+              endpointSuffixes:
+                - "${MODEL_ENDPOINT_SUFFIX}"

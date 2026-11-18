@@ -71,28 +71,36 @@
                   "description": "escalation is the stronger model, called with read tools only on the deterministic escalation signals\nof ADR-0023. Left out, an escalation trigger hands the incident off to a person.",
                   "properties": {
                     "apiVersion": {
-                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview. For provider Anthropic it is required too but not\nsent: that adapter's API version is fixed in code.",
+                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview. Required for provider Foundry. For provider\nAnthropic leave it out: that adapter's API version is fixed in code, so a value is accepted (an object\nstored when the field was required stays valid) but never sent.\nOpenAICompatible forbids this field: the endpoint includes its API prefix, such as /v1.",
                       "maxLength": 32,
                       "minLength": 2,
                       "pattern": "^(v1|[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(-preview)?)$",
                       "type": "string"
                     },
                     "deployment": {
-                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit. For provider Anthropic it is the model ID exactly as the replies name it, such as\nclaude-haiku-5-5.",
+                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit. For provider Anthropic it is the model ID exactly as the replies name it, such as\nclaude-haiku-5-5. For OpenAICompatible it is the server's model name and must equal a name in the\nendpoint declaration's models list byte for byte (ModelNotAllowed otherwise).",
                       "maxLength": 64,
                       "minLength": 1,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
                       "type": "string"
                     },
                     "endpoint": {
-                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.\nFor provider Anthropic it must be https://api.anthropic.com, the adapter's fixed host, and the allow-list\ndoes not apply; for Foundry that host is refused whatever the allow-list says.",
+                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.\nFor provider Anthropic it must be https://api.anthropic.com, the adapter's fixed host, and the allow-list\ndoes not apply; for Foundry that host is refused whatever the allow-list says. OpenAICompatible also\nrequires HTTPS and an exact parsed base and API from --openai-compatible-endpoints. The request uses only\ndeclared destination data, never a settings path. Foundry refuses declared compatible hosts. Private\naddresses require a declared Service with egress fields, never loopback or link-local. Each optional\nkey belongs to its declared base. No redirects or environment proxy are used.",
                       "maxLength": 256,
                       "minLength": 1,
                       "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*/?$",
                       "type": "string"
                     },
+                    "inferenceAPI": {
+                      "description": "inferenceAPI is the API a Foundry deployment is called through: ChatCompletions (used when it is left\nout) or Responses, which needs apiVersion v1 and posts to <endpoint>/openai/v1/responses. Both carry the\nsame redacted context, tool definitions, response schema and output limit; the Responses request asks the\nservice to store nothing. Set Responses for a model that refuses function tools on chat completions,\nsuch as the gpt-6.1 models, whose escalation calls need the read tools (#501). OpenAICompatible also\naccepts this field and appends /responses or /chat/completions to its endpoint without an Azure prefix.",
+                      "enum": [
+                        "ChatCompletions",
+                        "Responses"
+                      ],
+                      "type": "string"
+                    },
                     "maxTokensPerDay": {
-                      "description": "maxTokensPerDay is the daily spend cap of this deployment, in tokens per UTC day: input (cached or not)\nplus output tokens of every call, a failed or timed-out call counted at its upper bound (the input\nestimate plus maxOutputTokens). Required, with no default, so the admin chooses the cap of each\ndeployment. It is a count of tokens, not an amount of money, because tokens are what the provider\nreports and bills, they are whole numbers, and a money cap would need a price list in this object that\ngoes stale. It is per deployment because the triage and escalation models differ in price. The spend\nit allows is at most this count times the deployment's highest price per token (design 12.1) only\nbecause the counter reserves a call's upper bound before calling, under one lock for concurrent\nanalyses (planned, #208). 0 to 1,000,000,000; 0, or a cap that is spent, stops calls to this deployment\nand hands the incident off.",
+                      "description": "maxTokensPerDay is the daily spend cap of this deployment, in tokens per UTC day: input (cached or not)\nplus output tokens of every call, a failed or timed-out call counted at its upper bound (the input\nestimate plus maxOutputTokens), except a call the adapter marks as refused by its host before processing\n(a 429 on every attempt from a Microsoft-operated Azure OpenAI or Foundry host), counted as 0. Required, with no default, so the admin chooses the cap of each\ndeployment. It is a count of tokens, not an amount of money, because tokens are what the provider\nreports and bills, they are whole numbers, and a money cap would need a price list in this object that\ngoes stale. It is per deployment because the triage and escalation models differ in price. The spend\nit allows is at most this count times the deployment's highest price per token (design 12.1) only\nbecause the counter reserves a call's upper bound before calling, under one lock for concurrent\nanalyses (planned, #208). 0 to 1,000,000,000; 0, or a cap that is spent, stops calls to this deployment\nand hands the incident off.",
                       "format": "int64",
                       "maximum": 1000000000,
                       "minimum": 0,
@@ -100,16 +108,16 @@
                     },
                     "provider": {
                       "default": "Foundry",
-                      "description": "provider is the API the analyzer's adapter speaks to this deployment: Foundry (the default) or\nAnthropic. It names the API, not the model family: a Claude model on Microsoft Foundry is Foundry. With\nAnthropic the endpoint must be https://api.anthropic.com, the analyzer reads its API key from the file\nof its --anthropic-api-key-file flag (not in this object) and refuses the deployment without it,\ndeployment must equal the role's --triage-model or --escalation-model value, apiVersion is not sent\n(the adapter's API version is fixed), and the redacted context leaves Azure. A Foundry deployment may\nnot name the host api.anthropic.com. There is no fallback between providers.",
+                      "description": "provider is the API the analyzer's adapter speaks to this deployment: Foundry (the default),\nAnthropic or OpenAICompatible (ADR-0042). It names the API, not the model family: a Claude model on Microsoft Foundry is Foundry. With\nAnthropic the endpoint must be https://api.anthropic.com, the analyzer reads its API key from the file\nof its --anthropic-api-key-file flag (not in this object) and refuses the deployment without it,\ndeployment must equal the role's --triage-model or --escalation-model value, apiVersion may be left out\nand is not sent (the adapter's API version is fixed), and the redacted context leaves Azure. A Foundry\ndeployment needs the analyzer's Azure workload identity and --model-endpoint-suffixes; an analyzer\nstarted without them refuses it (ProviderNotConfigured). A Foundry deployment may\nnot name the host api.anthropic.com. There is no fallback between providers.\nOpenAICompatible matches --openai-compatible-endpoints declarations and their allowed models lists (ModelNotAllowed for an undeclared model), with no Azure identity and an optional API key\nread from its endpoint's own mounted file. The key is bound to its full install-time base URL, never an Azure model host\nor api.anthropic.com. Without a key it sends no Authorization header. No apiVersion is allowed.",
                       "enum": [
                         "Foundry",
-                        "Anthropic"
+                        "Anthropic",
+                        "OpenAICompatible"
                       ],
                       "type": "string"
                     }
                   },
                   "required": [
-                    "apiVersion",
                     "deployment",
                     "endpoint",
                     "maxTokensPerDay"
@@ -117,12 +125,37 @@
                   "type": "object",
                   "x-kubernetes-validations": [
                     {
+                      "fieldPath": ".apiVersion",
+                      "message": "a Foundry deployment needs apiVersion",
+                      "rule": "has(self.apiVersion) || (has(self.provider) && self.provider in ['Anthropic', 'OpenAICompatible'])"
+                    },
+                    {
                       "message": "a deployment with provider Anthropic must have the endpoint https://api.anthropic.com",
                       "rule": "!has(self.provider) || self.provider != 'Anthropic' || self.endpoint == 'https://api.anthropic.com'"
                     },
                     {
                       "message": "the host api.anthropic.com is only for a deployment with provider Anthropic",
                       "rule": "(has(self.provider) && self.provider == 'Anthropic') || !isURL(self.endpoint) || url(self.endpoint).getHostname() != 'api.anthropic.com'"
+                    },
+                    {
+                      "message": "inferenceAPI is only for a deployment with provider Foundry or OpenAICompatible",
+                      "rule": "!has(self.inferenceAPI) || !has(self.provider) || self.provider in ['Foundry', 'OpenAICompatible']"
+                    },
+                    {
+                      "message": "inferenceAPI Responses needs apiVersion v1",
+                      "rule": "(has(self.provider) && self.provider == 'OpenAICompatible') || !has(self.inferenceAPI) || self.inferenceAPI != 'Responses' || (has(self.apiVersion) && self.apiVersion == 'v1')"
+                    },
+                    {
+                      "message": "OpenAICompatible does not allow apiVersion",
+                      "rule": "!has(self.provider) || self.provider != 'OpenAICompatible' || !has(self.apiVersion)"
+                    },
+                    {
+                      "message": "OpenAICompatible does not allow Azure model hosts",
+                      "rule": "!has(self.provider) || self.provider != 'OpenAICompatible' || !isURL(self.endpoint) || !['openai.azure.com', 'cognitiveservices.azure.com', 'services.ai.azure.com'].exists(s, url(self.endpoint).getHostname() == s || url(self.endpoint).getHostname().endsWith('.' + s))"
+                    },
+                    {
+                      "message": "the host api.openai.com needs provider OpenAICompatible",
+                      "rule": "(has(self.provider) && self.provider != 'Foundry') || !isURL(self.endpoint) || url(self.endpoint).getHostname() != 'api.openai.com'"
                     }
                   ]
                 },
@@ -131,28 +164,36 @@
                   "description": "triage is the small model for the one structured call on the prepared context, without tools. Left out,\nno model is called: an incident no runbook matches is handed off to a person, and no unit of\nspec.analysis.maxAnalysesPerDay is used for it.",
                   "properties": {
                     "apiVersion": {
-                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview. For provider Anthropic it is required too but not\nsent: that adapter's API version is fixed in code.",
+                      "description": "apiVersion is the inference API version the adapter sends: v1, or a date such as 2024-10-21 (month 01\nto 12, day 01 to 31), optionally followed by -preview. Required for provider Foundry. For provider\nAnthropic leave it out: that adapter's API version is fixed in code, so a value is accepted (an object\nstored when the field was required stays valid) but never sent.\nOpenAICompatible forbids this field: the endpoint includes its API prefix, such as /v1.",
                       "maxLength": 32,
                       "minLength": 2,
                       "pattern": "^(v1|[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(-preview)?)$",
                       "type": "string"
                     },
                     "deployment": {
-                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit. For provider Anthropic it is the model ID exactly as the replies name it, such as\nclaude-haiku-5-5.",
+                      "description": "deployment is the name of the model deployment: 1 to 64 letters, digits, '.', '_' or '-', starting\nwith a letter or digit. For provider Anthropic it is the model ID exactly as the replies name it, such as\nclaude-haiku-5-5. For OpenAICompatible it is the server's model name and must equal a name in the\nendpoint declaration's models list byte for byte (ModelNotAllowed otherwise).",
                       "maxLength": 64,
                       "minLength": 1,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
                       "type": "string"
                     },
                     "endpoint": {
-                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.\nFor provider Anthropic it must be https://api.anthropic.com, the adapter's fixed host, and the allow-list\ndoes not apply; for Foundry that host is refused whatever the allow-list says.",
+                      "description": "endpoint is the HTTPS base URL of the inference endpoint, for example\nhttps://<resource>.services.ai.azure.com/ or https://<resource>.openai.azure.com/openai/v1. At most 256\ncharacters: a host name of lower-case DNS labels whose last label starts with a letter (so no IP\naddress and no single-label host such as localhost), an optional port from 1 to 65535 and an optional\npath whose segments do not start with '.'. No user info, query or fragment. The schema is\nvendor-neutral (ADR-0013). The endpoint decides where the analyzer's Entra ID token and the redacted\ncontext go: the analyzer refuses a host outside the allow-list of suffixes of its\n--model-endpoint-suffixes flag (not in this object) or a port other than 443, refuses private, loopback\nand link-local addresses when it dials, and requests a token for the Cognitive Services audience only.\nFor provider Anthropic it must be https://api.anthropic.com, the adapter's fixed host, and the allow-list\ndoes not apply; for Foundry that host is refused whatever the allow-list says. OpenAICompatible also\nrequires HTTPS and an exact parsed base and API from --openai-compatible-endpoints. The request uses only\ndeclared destination data, never a settings path. Foundry refuses declared compatible hosts. Private\naddresses require a declared Service with egress fields, never loopback or link-local. Each optional\nkey belongs to its declared base. No redirects or environment proxy are used.",
                       "maxLength": 256,
                       "minLength": 1,
                       "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*/?$",
                       "type": "string"
                     },
+                    "inferenceAPI": {
+                      "description": "inferenceAPI is the API a Foundry deployment is called through: ChatCompletions (used when it is left\nout) or Responses, which needs apiVersion v1 and posts to <endpoint>/openai/v1/responses. Both carry the\nsame redacted context, tool definitions, response schema and output limit; the Responses request asks the\nservice to store nothing. Set Responses for a model that refuses function tools on chat completions,\nsuch as the gpt-6.1 models, whose escalation calls need the read tools (#501). OpenAICompatible also\naccepts this field and appends /responses or /chat/completions to its endpoint without an Azure prefix.",
+                      "enum": [
+                        "ChatCompletions",
+                        "Responses"
+                      ],
+                      "type": "string"
+                    },
                     "maxTokensPerDay": {
-                      "description": "maxTokensPerDay is the daily spend cap of this deployment, in tokens per UTC day: input (cached or not)\nplus output tokens of every call, a failed or timed-out call counted at its upper bound (the input\nestimate plus maxOutputTokens). Required, with no default, so the admin chooses the cap of each\ndeployment. It is a count of tokens, not an amount of money, because tokens are what the provider\nreports and bills, they are whole numbers, and a money cap would need a price list in this object that\ngoes stale. It is per deployment because the triage and escalation models differ in price. The spend\nit allows is at most this count times the deployment's highest price per token (design 12.1) only\nbecause the counter reserves a call's upper bound before calling, under one lock for concurrent\nanalyses (planned, #208). 0 to 1,000,000,000; 0, or a cap that is spent, stops calls to this deployment\nand hands the incident off.",
+                      "description": "maxTokensPerDay is the daily spend cap of this deployment, in tokens per UTC day: input (cached or not)\nplus output tokens of every call, a failed or timed-out call counted at its upper bound (the input\nestimate plus maxOutputTokens), except a call the adapter marks as refused by its host before processing\n(a 429 on every attempt from a Microsoft-operated Azure OpenAI or Foundry host), counted as 0. Required, with no default, so the admin chooses the cap of each\ndeployment. It is a count of tokens, not an amount of money, because tokens are what the provider\nreports and bills, they are whole numbers, and a money cap would need a price list in this object that\ngoes stale. It is per deployment because the triage and escalation models differ in price. The spend\nit allows is at most this count times the deployment's highest price per token (design 12.1) only\nbecause the counter reserves a call's upper bound before calling, under one lock for concurrent\nanalyses (planned, #208). 0 to 1,000,000,000; 0, or a cap that is spent, stops calls to this deployment\nand hands the incident off.",
                       "format": "int64",
                       "maximum": 1000000000,
                       "minimum": 0,
@@ -160,16 +201,16 @@
                     },
                     "provider": {
                       "default": "Foundry",
-                      "description": "provider is the API the analyzer's adapter speaks to this deployment: Foundry (the default) or\nAnthropic. It names the API, not the model family: a Claude model on Microsoft Foundry is Foundry. With\nAnthropic the endpoint must be https://api.anthropic.com, the analyzer reads its API key from the file\nof its --anthropic-api-key-file flag (not in this object) and refuses the deployment without it,\ndeployment must equal the role's --triage-model or --escalation-model value, apiVersion is not sent\n(the adapter's API version is fixed), and the redacted context leaves Azure. A Foundry deployment may\nnot name the host api.anthropic.com. There is no fallback between providers.",
+                      "description": "provider is the API the analyzer's adapter speaks to this deployment: Foundry (the default),\nAnthropic or OpenAICompatible (ADR-0042). It names the API, not the model family: a Claude model on Microsoft Foundry is Foundry. With\nAnthropic the endpoint must be https://api.anthropic.com, the analyzer reads its API key from the file\nof its --anthropic-api-key-file flag (not in this object) and refuses the deployment without it,\ndeployment must equal the role's --triage-model or --escalation-model value, apiVersion may be left out\nand is not sent (the adapter's API version is fixed), and the redacted context leaves Azure. A Foundry\ndeployment needs the analyzer's Azure workload identity and --model-endpoint-suffixes; an analyzer\nstarted without them refuses it (ProviderNotConfigured). A Foundry deployment may\nnot name the host api.anthropic.com. There is no fallback between providers.\nOpenAICompatible matches --openai-compatible-endpoints declarations and their allowed models lists (ModelNotAllowed for an undeclared model), with no Azure identity and an optional API key\nread from its endpoint's own mounted file. The key is bound to its full install-time base URL, never an Azure model host\nor api.anthropic.com. Without a key it sends no Authorization header. No apiVersion is allowed.",
                       "enum": [
                         "Foundry",
-                        "Anthropic"
+                        "Anthropic",
+                        "OpenAICompatible"
                       ],
                       "type": "string"
                     }
                   },
                   "required": [
-                    "apiVersion",
                     "deployment",
                     "endpoint",
                     "maxTokensPerDay"
@@ -177,12 +218,37 @@
                   "type": "object",
                   "x-kubernetes-validations": [
                     {
+                      "fieldPath": ".apiVersion",
+                      "message": "a Foundry deployment needs apiVersion",
+                      "rule": "has(self.apiVersion) || (has(self.provider) && self.provider in ['Anthropic', 'OpenAICompatible'])"
+                    },
+                    {
                       "message": "a deployment with provider Anthropic must have the endpoint https://api.anthropic.com",
                       "rule": "!has(self.provider) || self.provider != 'Anthropic' || self.endpoint == 'https://api.anthropic.com'"
                     },
                     {
                       "message": "the host api.anthropic.com is only for a deployment with provider Anthropic",
                       "rule": "(has(self.provider) && self.provider == 'Anthropic') || !isURL(self.endpoint) || url(self.endpoint).getHostname() != 'api.anthropic.com'"
+                    },
+                    {
+                      "message": "inferenceAPI is only for a deployment with provider Foundry or OpenAICompatible",
+                      "rule": "!has(self.inferenceAPI) || !has(self.provider) || self.provider in ['Foundry', 'OpenAICompatible']"
+                    },
+                    {
+                      "message": "inferenceAPI Responses needs apiVersion v1",
+                      "rule": "(has(self.provider) && self.provider == 'OpenAICompatible') || !has(self.inferenceAPI) || self.inferenceAPI != 'Responses' || (has(self.apiVersion) && self.apiVersion == 'v1')"
+                    },
+                    {
+                      "message": "OpenAICompatible does not allow apiVersion",
+                      "rule": "!has(self.provider) || self.provider != 'OpenAICompatible' || !has(self.apiVersion)"
+                    },
+                    {
+                      "message": "OpenAICompatible does not allow Azure model hosts",
+                      "rule": "!has(self.provider) || self.provider != 'OpenAICompatible' || !isURL(self.endpoint) || !['openai.azure.com', 'cognitiveservices.azure.com', 'services.ai.azure.com'].exists(s, url(self.endpoint).getHostname() == s || url(self.endpoint).getHostname().endsWith('.' + s))"
+                    },
+                    {
+                      "message": "the host api.openai.com needs provider OpenAICompatible",
+                      "rule": "(has(self.provider) && self.provider != 'Foundry') || !isURL(self.endpoint) || url(self.endpoint).getHostname() != 'api.openai.com'"
                     }
                   ]
                 }

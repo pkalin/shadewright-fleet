@@ -1,0 +1,26 @@
+# Model provider Foundry (the lab default): the foundation's deployment "triage" at the lab's AI Services endpoint, no key
+# (the analyzer's workload identity). The deployment is the Terraform name, triageModel (infrastructure/shadewright-lab/
+# foundry) is the model behind it. MODEL_ENDPOINT is the foundation output model_endpoint, forwarded by
+# clusters/lab/shadewright-config.yaml. No escalation model: the CRD refuses triage and escalation on the same endpoint
+# and deployment, and the lab has one deployment (operator issue #80).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: RemediationSettings
+      name: default
+    patch: |-
+      apiVersion: remediation.shadewright.io/v1alpha1
+      kind: RemediationSettings
+      metadata:
+        name: default
+      spec:
+        analysis:
+          models:
+            triage:
+              endpoint: "${MODEL_ENDPOINT}"
+              deployment: triage
+              apiVersion: "2024-10-21"
+              maxTokensPerDay: 800000

@@ -1,0 +1,24 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: slowstart-oom
+summary: The slowstart container loads 36 MB into memory against a 48Mi limit, so it is OOMKilled, backs off, and fails its readiness probe again after each restart.
+incident:
+  reason: OOMKilled
+  status: planned
+  source: The kubelet writes lastState.terminated.reason on the container status and the collector's pod watch reads it. The kill, the BackOff Warning event and the readiness Unhealthy event were seen on a local Kind cluster on 2026-11-16 (see the README); not run on the lab yet, and not run with the agent.
+  object:
+    apiVersion: apps/v1
+    kind: Deployment
+    namespace: demo
+    name: slowstart
+diagnosis:
+  status: planned
+  evidence:
+    - fact: OOMKilled from the container status (last state), not from an event reason
+      source: the Incident reason, and the pod's lastState.terminated.reason
+    - fact: the readiness probe failures and the BackOff are consequences of the restarts, not causes
+      source: the Warning events Unhealthy and BackOff on the pod, and the restart count of the slowstart container
+outcome:
+  type: refusal
+  status: planned
+  reason: The scenario exists to test the grouping rule (matrix row 13), not a fix. The policy demo-memory allows apps/demo/*-deployment.yaml only, so a memory proposal for apps/slowstart/slowstart-deployment.yaml is Denied by the policy, and a Denied request is no failure of the row. Widening allowedPaths is a separate decision.

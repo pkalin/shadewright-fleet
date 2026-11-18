@@ -1,0 +1,39 @@
+# Model provider OpenAI, through the OpenAI-compatible provider (operator ADR-0042, docs/how-to/qualify-openai-compatible.md):
+# one declared endpoint, https://api.openai.com/v1 with the Responses API, and one allowed model. disableFoundry is true
+# (compatible-only inference), so there is no endpointSuffixes list and no Azure token is requested for the model call.
+# The key is the Secret shadewright-openai in shadewright-system, key "api-key", created outside Git by
+# shadewright-azure's `make lab-up` from LAB_OPENAI_KEY_FILE or the Key Vault; the chart mounts it into the analyzer
+# only, and without it the analyzer pod stays in ContainerCreating.
+# The model name gpt-6.1-sol, the one the operator's how-to and evaluation docs use, is in this file twice (triageModel
+# and the endpoint's models list) and in ../../shadewright-lab-config/openai once (deployment); change all three together
+# to test another model. triageModel must be the model ID the replies name, snapshot suffix included, so set it from a
+# recorded response before the run.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: HelmRelease
+      name: shadewright
+    patch: |-
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: shadewright
+        namespace: flux-system
+      spec:
+        values:
+          analyzer:
+            analysis:
+              disableFoundry: true
+              triageModel: gpt-6.1-sol
+              openAICompatible:
+                endpoints:
+                  - url: https://api.openai.com/v1
+                    inferenceAPI: Responses
+                    models:
+                      - gpt-6.1-sol
+                    apiKey:
+                      secretName: shadewright-openai
+                      secretKey: api-key

@@ -1,0 +1,26 @@
+# Model provider OpenAI, through the OpenAI-compatible provider (operator ADR-0042): the declared base and API of
+# infrastructure/shadewright-lab/openai, and one of its allowed models. apiVersion is forbidden for this provider. The
+# key is the Secret shadewright-openai, not in the settings. The model name is the one value to set before a run with
+# another model (three places, see infrastructure/shadewright-lab/openai).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: RemediationSettings
+      name: default
+    patch: |-
+      apiVersion: remediation.shadewright.io/v1alpha1
+      kind: RemediationSettings
+      metadata:
+        name: default
+      spec:
+        analysis:
+          models:
+            triage:
+              provider: OpenAICompatible
+              endpoint: https://api.openai.com/v1
+              inferenceAPI: Responses
+              deployment: gpt-6.1-sol
+              maxTokensPerDay: 800000
