@@ -1,8 +1,10 @@
 # The lab's RemediationSettings (operator config/samples/lab), for an evaluation run with the model analysis on
 # (infrastructure/shadewright-lab). maxAnalysesPerDay caps the model calls per UTC day; set it to 0 here to stop
-# the analysis without a chart change. The triage model is called through the Anthropic API: the analyzer reads its
-# key from a mounted file (the Secret shadewright-anthropic, created outside Git, see infrastructure/shadewright-lab)
-# and the settings hold no key. The executor still signs with Key Vault through its workload identity.
+# the analysis without a chart change. The model provider is not set here: analysis.models comes from the variant
+# next to this directory that the Flux Kustomization "shadewright-config" applies (foundry, anthropic or openai,
+# clusters/lab/shadewright-config.yaml). The settings hold no key: Foundry uses the analyzer's workload identity,
+# the other two read a key from a mounted file (a Secret created outside Git, see infrastructure/shadewright-lab).
+# The executor signs with Key Vault through its workload identity.
 apiVersion: remediation.shadewright.io/v1alpha1
 kind: RemediationSettings
 metadata:
@@ -38,15 +40,4 @@ spec:
     # 180 since 2026-11-17: the release run goes through the matrix once per model provider (three passes in one
     # day), 3 x 54 analyses at worst and a margin of 18. The token cap below is per model, so it stays.
     maxAnalysesPerDay: 180
-    models:
-      triage:
-        provider: Anthropic
-        # Fixed host of the Anthropic adapter, exactly this, no trailing slash.
-        endpoint: https://api.anthropic.com
-        # The model ID, infrastructure/shadewright-lab's triageModel.
-        deployment: claude-haiku-5-5
-        # Required by the CRD, not sent: the Anthropic adapter's API version is fixed in code.
-        apiVersion: "2024-10-21"
-        maxTokensPerDay: 800000
-      # No escalation model: the lab has one triage model. Escalation (the read tools) needs a second deployment
-      # (operator issue #80).
+    # models: see the variant (the triage model; no escalation model, the lab has one triage model, operator issue #80).

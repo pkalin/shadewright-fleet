@@ -277,7 +277,7 @@ tests, scenarios or fleet only) needs `make check-scenarios`, not a lab run.
 
 ## Analyses of a full run
 
-The daily cap is `analysis.maxAnalysesPerDay` in `infrastructure/shadewright-lab-config/remediationsettings.yaml`. A
+The daily cap is `analysis.maxAnalysesPerDay` in `infrastructure/shadewright-lab-config/base/remediationsettings.yaml`. A
 revert request and the deterministic steps use no analysis. Each row's analyses when the grouping rule holds:
 
 | Row | Analyses | Row | Analyses |

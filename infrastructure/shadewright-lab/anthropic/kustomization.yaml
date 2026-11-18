@@ -1,0 +1,36 @@
+# Model provider Anthropic: triageModel is claude-haiku-5-5, the model ID as the Anthropic API names it, called through
+# the Anthropic API (operator ADR-0037). anthropic.apiKey.secretName names a Secret in shadewright-system with the key
+# under the key "api-key" (the chart default secretKey). The Secret is created outside Git: shadewright-azure's
+# `make lab-up` creates it from LAB_ANTHROPIC_KEY_FILE or the Key Vault. No key is in Git. The chart mounts the Secret
+# into the analyzer container only, and the volume is not optional: without the Secret the analyzer pod stays in
+# ContainerCreating (FailedMount) and the analysis does not start; the executor is not affected.
+# endpointSuffixes still lists the lab's own AI Services account host: the flag is required with triageModel, although
+# the allow-list does not apply to provider Anthropic (the endpoint is fixed to https://api.anthropic.com).
+# The matching settings are in ../../shadewright-lab-config/anthropic.
+#
+#   Variable               Source (shadewright-azure)                                     Used for
+#   MODEL_ENDPOINT_SUFFIX  "." plus the host of foundation output model_endpoint          analyzer.analysis.endpointSuffixes
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: HelmRelease
+      name: shadewright
+    patch: |-
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: shadewright
+        namespace: flux-system
+      spec:
+        values:
+          analyzer:
+            analysis:
+              triageModel: claude-haiku-5-5
+              anthropic:
+                apiKey:
+                  secretName: shadewright-anthropic
+              endpointSuffixes:
+                - "${MODEL_ENDPOINT_SUFFIX}"

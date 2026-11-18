@@ -1,0 +1,27 @@
+# Model provider Anthropic: the fixed host of the Anthropic adapter and the model ID of
+# infrastructure/shadewright-lab/anthropic's triageModel. The key is the Secret shadewright-anthropic, not in the settings.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: RemediationSettings
+      name: default
+    patch: |-
+      apiVersion: remediation.shadewright.io/v1alpha1
+      kind: RemediationSettings
+      metadata:
+        name: default
+      spec:
+        analysis:
+          models:
+            triage:
+              provider: Anthropic
+              # Fixed host of the Anthropic adapter, exactly this, no trailing slash.
+              endpoint: https://api.anthropic.com
+              # The model ID, infrastructure/shadewright-lab/anthropic's triageModel.
+              deployment: claude-haiku-5-5
+              # Required by the CRD, not sent: the Anthropic adapter's API version is fixed in code.
+              apiVersion: "2024-10-21"
+              maxTokensPerDay: 800000

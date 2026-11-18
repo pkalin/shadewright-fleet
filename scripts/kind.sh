@@ -273,9 +273,11 @@ for l in json.load(open(sys.argv[1]))["layers"]:
 
 # The Kind cluster has a real API server, which evaluates the CEL rules (x-kubernetes-validations) of the CRDs that
 # kubeconform cannot (fleet#41). Installs the pinned chart's CRDs, then a server-side dry run of the lab's
-# RemediationSettings and policy rendered with their samples; the job fails when the API server refuses them.
+# RemediationSettings and policy rendered with their samples, once per model provider variant that the pinned chart's
+# CRDs know (foundry and anthropic; the openai variant needs the CRD of a release that has operator ADR-0042, see
+# scripts/render.sh); the job fails when the API server refuses one.
 cmd_dry_run_config() {
-  local dir="${REPO_ROOT}/infrastructure/shadewright-lab-config" crds rendered
+  local root="${REPO_ROOT}/infrastructure/shadewright-lab-config" variant crds rendered
   validate_inputs
   need kubectl
   need "$KUSTOMIZE"
@@ -287,14 +289,16 @@ cmd_dry_run_config() {
   k wait --for=condition=Established --timeout=120s \
     crd/incidents.remediation.shadewright.io crd/remediationrequests.remediation.shadewright.io \
     crd/remediationpolicies.remediation.shadewright.io crd/remediationsettings.remediation.shadewright.io >/dev/null
-  render_substituted "$dir" infrastructure/shadewright-lab-config >"$rendered"
   rm -rf "$crds"
-  if ! k apply --dry-run=server -f "$rendered"; then
-    rm -f "$rendered"
-    die "the API server refused infrastructure/shadewright-lab-config (rendered with render-sample.env)"
-  fi
+  for variant in foundry anthropic; do
+    render_substituted "${root}/${variant}" "infrastructure/shadewright-lab-config/${variant}" >"$rendered"
+    if ! k apply --dry-run=server -f "$rendered"; then
+      rm -f "$rendered"
+      die "the API server refused infrastructure/shadewright-lab-config/${variant} (rendered with render-sample.env)"
+    fi
+    log "the API server accepts infrastructure/shadewright-lab-config/${variant}"
+  done
   rm -f "$rendered"
-  log "the API server accepts infrastructure/shadewright-lab-config"
 }
 
 cmd_down() {

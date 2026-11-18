@@ -65,7 +65,7 @@ cat >"$STUBS/kubectl" <<'EOF2'
 echo "kubectl $*" >>"$STUB_LOG"
 case " $* " in
   *" --dry-run=server "*)
-    cat "${@: -1}" >"$T_APPLIED"
+    cat "${@: -1}" >>"$T_APPLIED"
     if [ -n "${STUB_REFUSE:-}" ]; then echo 'The RemediationSettings "default" is invalid: spec.analysis.models: refused' >&2; exit 1; fi ;;
   *" --server-side "*) for f in "${@: -1}"/*.yaml; do cat "$f"; done >"$T_CRDS" ;;
 esac
@@ -74,7 +74,8 @@ EOF2
 cat >"$STUBS/kustomize" <<'EOF2'
 #!/usr/bin/env bash
 [ "$1" = build ] || exit 2
-for f in "$2"/remediation*.yaml; do echo "---"; cat "$f"; done
+for f in "$2"/../base/remediation*.yaml; do echo "---"; cat "$f"; done
+echo "---"; echo "# variant $(basename "$2")"
 EOF2
 chmod +x "$STUBS/curl" "$STUBS/kubectl" "$STUBS/kustomize"
 export SERVE T_APPLIED="$T/applied.yaml" T_CRDS="$T/crds.yaml"
@@ -87,7 +88,10 @@ expect_ok "a chart that matches its digests passes" "accepts infrastructure/shad
 check "the CRDs are applied before the dry run" bash -c 'grep -E "server-side|dry-run=server" "$STUB_LOG" | head -1 | grep -q server-side'
 # shellcheck disable=SC2016
 check "the CRD is plain YAML (directives dropped)" bash -c '! grep -q "{{" "$T_CRDS" && grep -q "name: things.example.io" "$T_CRDS"'
-check "the rendered configuration is what the dry run receives" grep -q 'endpoint: https://api.anthropic.com' "$T_APPLIED"
+check "the foundry variant is dry-run" grep -q '# variant foundry' "$T_APPLIED"
+check "the anthropic variant is dry-run" grep -q '# variant anthropic' "$T_APPLIED"
+# shellcheck disable=SC2016
+check "the openai variant is not (its CRD is not in the pinned chart)" bash -c '! grep -q "# variant openai" "$T_APPLIED"'
 # shellcheck disable=SC2016
 check "no placeholder reaches the API server" bash -c '! grep -q "\${" "$T_APPLIED"'
 
