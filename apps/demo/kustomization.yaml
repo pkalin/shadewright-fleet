@@ -11,8 +11,6 @@ resources:
   - networkpolicy-allow-prometheus-scrape.yaml
   - networkpolicy-default-deny.yaml
   - web-deployment.yaml
-  - web-memory-limit-policy-binding.yaml
-  - web-memory-limit-policy.yaml
   - web-service.yaml
   - web-serviceaccount.yaml
   - worker-deployment.yaml
