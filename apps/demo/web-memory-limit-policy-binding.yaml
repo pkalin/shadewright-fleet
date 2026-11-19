@@ -1,0 +1,13 @@
+# SCENARIO delivery-blocked (scenarios/delivery-blocked): binds web-memory-limit to the demo namespace and denies.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: web-memory-limit
+spec:
+  policyName: web-memory-limit
+  validationActions:
+    - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: demo
