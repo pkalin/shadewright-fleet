@@ -57,10 +57,11 @@ scenario:
    upgrade, not until the next Flux reconcile. The Deployment name and that behaviour were not checked on a cluster.
 2. An escalation model. The lab has none today (`infrastructure/shadewright-lab/` sets only the triage model; the
    operator issue #80 is the second deployment). Without it an escalation is handed off with
-   `EscalationNotConfigured` before any tool is offered. [NEEDS CLARIFICATION: which escalation model each provider
-   gets, and who adds the second deployment. Foundry needs `inferenceAPI: Responses` for a model that refuses function
+   `EscalationNotConfigured` before any tool is offered. Which escalation model each provider gets is left to the operator epic
+   [pkalin/shadewright#503](https://github.com/pkalin/shadewright/issues/503) (ADR-0027 sets no default), and the second
+   deployment is added with that choice. Foundry needs `inferenceAPI: Responses` for a model that refuses function
    tools on chat completions ([pkalin/shadewright#501](https://github.com/pkalin/shadewright/issues/501)). This
-   pull request does not change `infrastructure/`.]
+   pull request does not change `infrastructure/`; the row stays planned until both prerequisites exist.
 
 ## Expected path (planned, not observed)
 
