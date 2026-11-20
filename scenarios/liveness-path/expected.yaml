@@ -1,0 +1,25 @@
+apiVersion: scenarios.shadewright.io/v1alpha1
+kind: Scenario
+name: liveness-path
+summary: The web liveness probe asks for /health, which podinfo does not serve, so the kubelet restarts the container; the path is visible only in the Deployment.
+incident:
+  reason: Unhealthy
+  status: planned
+  source: Expected from the collector's rules (operator design 3.1), not observed. The kubelet's Warning event Unhealthy for the web pod, with a note that starts with Liveness probe failed and gives an HTTP status code, not the path. It is a consequence event, so the collector holds it for 2 minutes and emits it only if the container has not recovered. BackOff may come first or instead.
+  object:
+    apiVersion: apps/v1
+    kind: Deployment
+    namespace: demo
+    name: web
+diagnosis:
+  status: planned
+  evidence:
+    - fact: the liveness probe of the web container requests the path /health
+      source: the Deployment's spec.template.spec.containers[web].livenessProbe, read with the get_resource tool on escalation (the first context does not hold probe settings)
+    - fact: the probe fails and the kubelet restarts the container
+      source: the Warning event Unhealthy (Liveness probe failed) and the container's restart count in the pod status
+outcome:
+  type: refusal
+  status: planned
+  reason: No catalog action changes a probe, so nothing is proposed; the diagnosis names the path and a person is notified.
+  phase: NeedsIntervention
