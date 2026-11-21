@@ -81,7 +81,10 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   writes noisy, misleading or injected log lines, set at start from flags or a config file, or through endpoints that
   need a token from a mounted file. Every applied fault is one JSON log line with the scenario seed, and sizes are
   capped below the pod's limits unless the scenario asks to cross them. Its `README.md` has the faults, caps and log
-  format. The image pipeline and the manifests come later.
+  format. A tag `faultbox-vX.Y.Z` runs `.github/workflows/faultbox-image.yml`: it checks that the tag is on `main`, builds
+  amd64 and arm64, pushes `ghcr.io/pkalin/faultbox:X.Y.Z`, signs the index keyless with cosign and attests one SPDX SBOM
+  per platform (write and `id-token` permissions only in the publish job). `scripts/bump-faultbox-digest.sh sha256:<digest>`
+  moves the digest in every manifest that references the image. The manifests come later.
 - `Makefile`: entry points, one script call each (the Go checks of `tools/` call the go tool). `tests/`: offline tests of the scripts.
 
 ## Scenarios (ADR-0022)
