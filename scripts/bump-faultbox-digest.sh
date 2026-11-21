@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Moves every manifest that references ghcr.io/pkalin/faultbox to a new image digest (the index digest the faultbox-image
-# workflow prints in its job summary). Only a reference of the form ghcr.io/pkalin/faultbox[:tag]@sha256:<64 hex> is
-# changed, in YAML files under apps/, infrastructure/, clusters/ and scenarios/; the tag is kept (use --tag to set it).
+# workflow prints in its job summary). Only a reference of the form ghcr.io/pkalin/faultbox[:tag]@sha256:<64 hex> that
+# starts a line or follows a space or a quote (as after `image: `) is changed, so another registry's path that ends
+# in the same name is left alone. It looks in YAML files under apps/, infrastructure/, clusters/ and scenarios/; the
+# tag is kept (use --tag to set it).
 # Prints each file it changed and fails if there is none, so a typo does not pass as a bump.
 #   scripts/bump-faultbox-digest.sh sha256:<digest> [--tag X.Y.Z]
 set -euo pipefail
@@ -25,14 +27,16 @@ root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "${root}"
 
 ref='ghcr\.io/pkalin/faultbox'
+# What may come right before the reference: the start of the line, a space (as in `image: `) or a quote.
+lead="(^|[[:space:]\"'])"
 changed=0
 while IFS= read -r file; do
-  grep -Eq "${ref}(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}" "${file}" || continue
+  grep -Eq "${lead}${ref}(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}" "${file}" || continue
   tmp="$(mktemp)"
   if [ -n "${tag}" ]; then
-    sed -E "s#(${ref})(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}#\\1:${tag}@${digest}#g" "${file}" >"${tmp}"
+    sed -E "s#${lead}(${ref})(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}#\\1\\2:${tag}@${digest}#g" "${file}" >"${tmp}"
   else
-    sed -E "s#(${ref}(:[A-Za-z0-9._-]+)?)@sha256:[a-f0-9]{64}#\\1@${digest}#g" "${file}" >"${tmp}"
+    sed -E "s#${lead}(${ref}(:[A-Za-z0-9._-]+)?)@sha256:[a-f0-9]{64}#\\1\\2@${digest}#g" "${file}" >"${tmp}"
   fi
   cat "${tmp}" >"${file}"
   rm -f "${tmp}"
