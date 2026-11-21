@@ -28,7 +28,8 @@ latency faults act) answer anyone.
 ## Ground truth
 
 Every applied fault is one JSON line on stdout, written before the fault is carried out, so a fault that kills the
-process is on record first:
+process is on record first. The record and the change happen under one lock, so when calls race, the last record
+written is the fault in force:
 
 ```json
 {"time":"...","level":"INFO","msg":"fault applied","event":"fault","fault":"memory","source":"start","seed":"77","scenario":"oom-start","params":{"mb":100,"cross":true}}
@@ -68,9 +69,14 @@ the cgroup limit is read as well (`/sys/fs/cgroup/memory.max`, or v1) and the lo
 
 - Without crossing: memory and disk up to three quarters of the limit, CPU up to the limit. With no known limit:
   64 MiB of memory, 64 MiB of disk, 500 millicores.
-- With `--cross-limits` (start) or `cross=true` (endpoint): up to twice the limit, so a scenario can get a real
-  OOMKill or eviction while a wrong limit flag still bounds the damage. Crossing needs a known limit; with none it
-  is refused, because the size would press the node instead of the pod.
+- With crossing: up to twice the limit, so a scenario can get a real OOMKill or eviction while a wrong limit flag
+  still bounds the damage. Crossing needs a known limit; with none it is refused, because the size would press the
+  node instead of the pod.
+- Crossing is declared by the scenario, not chosen by a caller: `--cross-limits` (a flag or a config key) lets the
+  start faults cross, and only a process started with it accepts `cross=true` at `/memory`, `/disk` or `/cpu`.
+  Without it such a call is refused with HTTP 422 and recorded as `fault_refused`.
+- A limit flag must be 0 (not known) to 1073741824 (`2^30` MiB or millicores); any other value refuses the start,
+  so no cap can overflow.
 - Hard ceilings whatever the limits say: 4096 MiB of memory or disk, 4000 millicores, 3600 seconds of cpu or log,
   60000 ms of latency, 100 log lines per second.
 

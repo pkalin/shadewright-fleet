@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -308,5 +309,59 @@ func TestErrorsAreDrawnFromTheSeed(t *testing.T) {
 	}
 	if n := count(draw("seed-a", 0)); n != 0 {
 		t.Fatalf("rate 0 gave %d of 1000", n)
+	}
+}
+
+// Of concurrent faults, the last record written is the one in force: the record and the change happen under one
+// lock, so two calls cannot be recorded A, B and applied B, A.
+func TestConcurrentFaultsLastRecordIsState(t *testing.T) {
+	t.Parallel()
+	b, out, _ := newTestBox(t, Limits{})
+	const rounds, workers = 2000, 8
+	for round := range rounds {
+		var wg sync.WaitGroup
+		for w := range workers {
+			wg.Go(func() {
+				if err := b.Apply(Fault{Kind: KindLatency, MS: round*workers + w + 1}, SourceEndpoint, "s1"); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		wg.Wait()
+		all := strings.TrimSpace(out.String()) // only fault records: latency writes no other line
+		recs := records(t, all[strings.LastIndexByte(all, '\n')+1:], "fault")
+		if len(recs) != 1 {
+			t.Fatalf("round %d: last line is not a fault record:\n%s", round, all)
+		}
+		last := recs[0]["params"].(map[string]any)["ms"]
+		if got := b.latency.Load(); float64(got) != last {
+			t.Fatalf("round %d: latency in force %d, last record says %v", round, got, last)
+		}
+	}
+}
+
+// A call cannot cross the limit unless the box was started with --cross-limits; with it, it can.
+func TestCrossNeedsCrossLimits(t *testing.T) {
+	t.Parallel()
+	l := Limits{MemoryMB: 64, DiskMB: 64, CPUMillicores: 100}
+	for _, f := range []Fault{
+		{Kind: KindMemory, MB: 60, Cross: true},
+		{Kind: KindDisk, MB: 60, Cross: true},
+		{Kind: KindCPU, Millicores: 150, Seconds: 1, Cross: true},
+	} {
+		b, out, _ := newTestBox(t, l)
+		if err := b.Apply(f, SourceEndpoint, "s1"); !errors.Is(err, errOverCap) || !strings.Contains(err.Error(), "--cross-limits") {
+			t.Errorf("%s: got %v, want a refusal naming --cross-limits", f.Kind, err)
+		}
+		if n := len(records(t, out.String(), "fault")); n != 0 {
+			t.Errorf("%s: a refused cross wrote %d fault records", f.Kind, n)
+		}
+		if b.heldMB() != 0 {
+			t.Errorf("%s: a refused cross allocated memory", f.Kind)
+		}
+		b.crossLimits = true
+		if err := b.Apply(f, SourceEndpoint, "s1"); err != nil {
+			t.Errorf("%s with --cross-limits: %v", f.Kind, err)
+		}
 	}
 }

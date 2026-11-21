@@ -112,6 +112,10 @@ func TestControlWithToken(t *testing.T) {
 	if w := call(s, http.MethodPost, "/memory?mb=60", auth); w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("memory over the cap: got %d, want 422", w.Code)
 	}
+	if w := call(s, http.MethodPost, "/memory?mb=60&cross=true", auth); w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("memory with cross on a box started without --cross-limits: got %d, want 422", w.Code)
+	}
+	b.crossLimits = true
 	if w := call(s, http.MethodPost, "/memory?mb=60&cross=true", auth); w.Code != http.StatusOK {
 		t.Fatalf("memory over the cap with cross: got %d %s", w.Code, w.Body)
 	}

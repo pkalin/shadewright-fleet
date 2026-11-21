@@ -48,7 +48,7 @@ func newTestBox(t *testing.T, l Limits) (*Box, *lockedBuffer, *exitRecorder) {
 	t.Helper()
 	buf := &lockedBuffer{}
 	ex := &exitRecorder{}
-	b := NewBox(buf, l, t.TempDir(), "test-scenario", ex.exit)
+	b := NewBox(buf, l, t.TempDir(), "test-scenario", false, ex.exit)
 	t.Cleanup(b.Close)
 	return b, buf, ex
 }

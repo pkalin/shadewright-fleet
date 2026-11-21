@@ -26,7 +26,7 @@ func TestParseOptionsFromConfigFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.seed != "42" || o.scenario != "oom-start" {
+	if o.seed != "42" || o.scenario != "oom-start" || !o.crossLimits {
 		t.Fatalf("seed %q scenario %q", o.seed, o.scenario)
 	}
 	want := []Fault{{Kind: KindMemory, MB: 200, Cross: true}, {Kind: KindLatency, MS: 70}}
@@ -50,7 +50,6 @@ func TestParseOptionsRefusals(t *testing.T) {
 		{"fault without a seed", []string{"--memory-mb", "10"}, ""},
 		{"invalid seed", []string{"--seed", "a b"}, ""},
 		{"sub-flag without its fault", []string{"--seed", "1", "--cpu-seconds", "5"}, ""},
-		{"cross without a sized fault", []string{"--seed", "1", "--cross-limits", "--latency-ms", "5"}, ""},
 		{"stray argument", []string{"extra"}, ""},
 		{"unknown config key", nil, "seed=1\nmemory=10\n"},
 		{"config sets the token file", nil, "token-file=/tmp/x\n"},
@@ -58,6 +57,10 @@ func TestParseOptionsRefusals(t *testing.T) {
 		{"repeated config key", nil, "seed=1\nseed=2\n"},
 		{"line without =", nil, "seed\n"},
 		{"bad value", nil, "seed=1\nmemory-mb=many\n"},
+		{"huge memory limit", []string{"--limit-memory-mb", "9223372036854775807"}, ""},
+		{"huge disk limit", []string{"--limit-disk-mb", "4611686018427387904"}, ""},
+		{"huge cpu limit", []string{"--limit-cpu-millicores", "3074457345618258603"}, ""},
+		{"negative limit", []string{"--limit-memory-mb", "-1"}, ""},
 	}
 	for _, c := range cases {
 		args := c.args
@@ -127,5 +130,31 @@ func TestRunAppliesStartFaultsFirst(t *testing.T) {
 	}
 	if got := ex.got(); len(got) != 1 || got[0] != 3 {
 		t.Fatalf("exit codes %v, want [3]", got)
+	}
+}
+
+// A limit flag so large that its caps would overflow refuses the start with an error that names the flag.
+func TestRunRefusesHugeLimit(t *testing.T) {
+	t.Parallel()
+	out := &lockedBuffer{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // a start that is not refused serves and stops at once, so the test fails instead of hanging
+	args := []string{"--limit-memory-mb", "9223372036854775807", "--seed", "1", "--memory-mb", "1", "--listen", "127.0.0.1:0", "--disk-dir", t.TempDir()}
+	code := run(ctx, args, out, io.Discard, t.TempDir(), (&exitRecorder{}).exit)
+	if code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	recs := records(t, out.String(), "start_refused")
+	if len(recs) != 1 || !strings.Contains(recs[0]["reason"].(string), "limit-memory-mb 9223372036854775807 is outside 0 to") {
+		t.Fatalf("records %v, want one start_refused naming the limit flag", recs)
+	}
+}
+
+// --cross-limits alone is a valid start: the scenario declares that its run-time calls may cross.
+func TestParseOptionsCrossLimitsAlone(t *testing.T) {
+	t.Parallel()
+	o, err := parseOptions([]string{"--seed", "1", "--cross-limits"}, io.Discard)
+	if err != nil || !o.crossLimits || len(o.faults) != 0 {
+		t.Fatalf("got %+v, %v; want cross-limits set and no start fault", o, err)
 	}
 }

@@ -39,6 +39,7 @@ type options struct {
 	listen, tokenFile, diskDir, config string
 	limits                             Limits
 	seed, scenario                     string
+	crossLimits                        bool
 	faults                             []Fault
 }
 
@@ -57,7 +58,8 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	fs.IntVar(&o.limits.CPUMillicores, "limit-cpu-millicores", 0, "the container's CPU limit in millicores (Downward API)")
 	fs.StringVar(&o.seed, "seed", "", "scenario seed written with every fault record; required when a fault is set at start")
 	fs.StringVar(&o.scenario, "scenario", "", "scenario name written with every fault record")
-	cross := fs.Bool("cross-limits", false, "let the memory, disk and cpu faults go over the pod's limit (up to twice it)")
+	cross := &o.crossLimits
+	fs.BoolVar(cross, "cross-limits", false, "let the memory, disk and cpu faults go over the pod's limit (up to twice it), at start and at the endpoints")
 	memoryMB := fs.Int("memory-mb", 0, "memory to allocate and hold, MiB")
 	diskMB := fs.Int("disk-mb", 0, "file size to write into --disk-dir, MiB")
 	cpuM := fs.Int("cpu-millicores", 0, "CPU to burn, millicores")
@@ -81,6 +83,15 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	if o.config != "" {
 		if err := applyConfig(fs, o.config, set); err != nil {
 			return o, err
+		}
+	}
+
+	for _, l := range []struct {
+		name string
+		v    int
+	}{{"limit-memory-mb", o.limits.MemoryMB}, {"limit-disk-mb", o.limits.DiskMB}, {"limit-cpu-millicores", o.limits.CPUMillicores}} {
+		if l.v < 0 || l.v > maxLimit {
+			return o, fmt.Errorf("%s %d is outside 0 to %d", l.name, l.v, maxLimit)
 		}
 	}
 
@@ -113,9 +124,6 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	}
 	if set["crash-code"] {
 		o.faults = append(o.faults, Fault{Kind: KindCrash, Code: *crashCode, After: *crashAfter})
-	}
-	if *cross && !set["memory-mb"] && !set["disk-mb"] && !set["cpu-millicores"] {
-		return o, errors.New("cross-limits needs memory-mb, disk-mb or cpu-millicores")
 	}
 	if o.seed != "" && !validSeed(o.seed) {
 		return o, errors.New("seed must be 1 to 64 of A-Z a-z 0-9 . _ : -")
@@ -187,7 +195,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cgroupRoo
 			return 2
 		}
 	}
-	box := NewBox(stdout, o.limits, o.diskDir, o.scenario, exit)
+	box := NewBox(stdout, o.limits, o.diskDir, o.scenario, o.crossLimits, exit)
 	defer box.Close()
 	for _, f := range o.faults {
 		if err := box.Apply(f, SourceStart, o.seed); err != nil {

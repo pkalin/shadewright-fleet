@@ -20,6 +20,10 @@ const (
 	hardLogPerSecond  = 100
 )
 
+// maxLimit is the largest limit flag accepted (MiB or millicores, 1 PiB or a million cores): far above any real
+// pod, and small enough that twice it or three quarters of it cannot overflow. The cgroup limit stays below it.
+const maxLimit = 1 << 30
+
 // Caps used when the pod's limit is not known: small, and crossing is refused (there is no limit to cross, so a
 // larger size would press the node instead of the pod).
 const (

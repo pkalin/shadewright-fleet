@@ -41,6 +41,9 @@ type Box struct {
 	diskDir  string
 	exit     func(int)
 	scenario string
+	// crossLimits is --cross-limits: only a box started with it lets a fault go over the pod's limit, at start or
+	// at an endpoint. Crossing is declared by the scenario, never chosen by a caller.
+	crossLimits bool
 
 	mu         sync.Mutex
 	mem        [][]byte
@@ -58,15 +61,17 @@ type Box struct {
 }
 
 // NewBox returns a Box with no fault in force. out receives the JSON records and the generated log lines.
-func NewBox(out io.Writer, limits Limits, diskDir, scenario string, exit func(int)) *Box {
+// crossLimits lets the memory, disk and cpu faults ask to cross the pod's limit.
+func NewBox(out io.Writer, limits Limits, diskDir, scenario string, crossLimits bool, exit func(int)) *Box {
 	w := &syncWriter{w: out}
 	b := &Box{
-		log:      slog.New(slog.NewJSONHandler(w, nil)),
-		out:      w,
-		limits:   limits,
-		diskDir:  diskDir,
-		exit:     exit,
-		scenario: scenario,
+		log:         slog.New(slog.NewJSONHandler(w, nil)),
+		out:         w,
+		limits:      limits,
+		diskDir:     diskDir,
+		exit:        exit,
+		scenario:    scenario,
+		crossLimits: crossLimits,
 	}
 	b.ready.Store(true)
 	return b
@@ -88,7 +93,11 @@ func (b *Box) Apply(f Fault, src Source, seed string) error {
 		b.log.Warn("fault refused", "event", "fault_refused", "fault", string(f.Kind), "source", string(src), "reason", err.Error())
 		return err
 	}
-	if err := f.Validate(b.limits); err != nil {
+	err := f.Validate(b.limits)
+	if err == nil && f.Cross && !b.crossLimits {
+		err = fmt.Errorf("%w: crossing the limit is declared at start with --cross-limits, not by a call", errOverCap)
+	}
+	if err != nil {
 		b.log.Warn("fault refused", "event", "fault_refused", "fault", string(f.Kind), "source", string(src),
 			"seed", seed, "reason", err.Error())
 		return err
@@ -96,9 +105,13 @@ func (b *Box) Apply(f Fault, src Source, seed string) error {
 	if f.Kind == KindCrash && src == SourceEndpoint {
 		f.After = max(f.After, endpointCrashDelay) // the caller gets its answer first; the record shows the real delay
 	}
+	// The record and the change happen under the same lock, so of two concurrent faults the last record written
+	// is always the one in force.
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.log.Info("fault applied", "event", "fault", "fault", string(f.Kind), "source", string(src), "seed", seed,
 		"scenario", b.scenario, slog.Group("params", f.params()...))
-	if err := b.carryOut(f, src, seed); err != nil {
+	if err := b.carryOut(f, seed); err != nil {
 		b.log.Error("fault failed", "event", "fault_failed", "fault", string(f.Kind), "source", string(src),
 			"seed", seed, "error", err.Error())
 		return err
@@ -106,9 +119,8 @@ func (b *Box) Apply(f Fault, src Source, seed string) error {
 	return nil
 }
 
-func (b *Box) carryOut(f Fault, src Source, seed string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+// carryOut makes the change. The caller holds b.mu.
+func (b *Box) carryOut(f Fault, seed string) error {
 	switch f.Kind {
 	case KindMemory:
 		b.setMemory(f.MB)
