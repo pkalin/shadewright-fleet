@@ -5,7 +5,7 @@
 # from the index manifest, by digest, never by tag. BuildKit also adds attestation manifests (platform
 # unknown/unknown) to the index; they are ignored. Fails unless each platform has exactly one image.
 # Needs docker (buildx imagetools) and jq. Usage:
-#   hack/image-platform-digests.sh <registry/name@sha256:index digest>
+#   scripts/image-platform-digests.sh <registry/name@sha256:index digest>
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
