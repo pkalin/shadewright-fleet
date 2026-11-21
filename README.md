@@ -35,6 +35,7 @@ schemas/                kubeconform schemas of the Shadewright CRDs (scripts/crd
 scripts/scenario.sh     scenario harness: make scenario-<name> and scenario-reset CLUSTER=kind|lab
 scripts/kind.sh         Kind cluster with Flux pointed at this repository: make kind-up, kind-wait, kind-down
 scripts/tools.env       every pinned tool version and checksum (make tools installs them into bin/)
+tools/faultbox/         a workload that fails on request with known truth (Go, distroless): make faultbox-test
 ```
 
 Environment values (tenant and identity client IDs, endpoints, the operator namespace) are never in this
