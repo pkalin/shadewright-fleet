@@ -2,7 +2,8 @@ name: Harness
 
 # The scenario harness and the Kind scripts (ADR-0022): shellcheck, the offline tests in tests/ (local bare Git
 # remotes, stubbed kubectl and kind), and the scenarios under scenarios/ (layout, expected.yaml against its schema,
-# and whether apps/ with each scenario renders as the scenario declares). Reads the repository only: no secrets.
+# and whether apps/ with each scenario renders as the scenario declares), and the Go checks of tools/faultbox. Reads the
+# repository only: no secrets.
 on:
   pull_request:
   push:
@@ -49,3 +50,28 @@ jobs:
               export CHECK_BASE=origin/main ;;
           esac
           make check-scenarios
+
+  faultbox:
+    name: faultbox tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The toolchain line of tools/faultbox/go.mod. No module cache: the tool has no dependencies.
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: tools/faultbox/go.mod
+          cache: false
+
+      - name: gofmt and go vet
+        run: make faultbox-lint
+
+      - name: Unit tests
+        run: make faultbox-test

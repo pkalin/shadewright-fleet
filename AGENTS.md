@@ -76,7 +76,13 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   under `apps/demo/` (or `apps/slowstart/`), at `scenarios/<name>/apps/demo/<file>`. Layout and schema: `scenarios/README.md`.
 - `scripts/`: `render.sh` (the render check), `scenario.sh` (the scenario harness), `kind.sh` (the Kind cluster),
   `install-tools.sh`, `lib.sh`, and `tools.env`, the one place every tool version and checksum is pinned.
-- `Makefile`: entry points, one script call each. `tests/`: offline tests of the scripts.
+- `tools/faultbox/`: a fault workload with known truth (its own Go module, standard library only, distroless image):
+  it holds memory, burns CPU, fills its emptyDir, crashes, stops being ready, answers with errors or latency and
+  writes noisy, misleading or injected log lines, set at start from flags or a config file, or through endpoints that
+  need a token from a mounted file. Every applied fault is one JSON log line with the scenario seed, and sizes are
+  capped below the pod's limits unless the scenario asks to cross them. Its `README.md` has the faults, caps and log
+  format. The image pipeline and the manifests come later.
+- `Makefile`: entry points, one script call each (the Go checks of `tools/` call the go tool). `tests/`: offline tests of the scripts.
 
 ## Scenarios (ADR-0022)
 
@@ -105,6 +111,7 @@ make tools            # pinned kustomize, kubeconform, kind, kubectl, shellcheck
 scripts/render.sh     # kustomize build of clusters/, infrastructure/, apps/, kubeconform -strict, Flux paths exist
 make lint test        # shellcheck and the offline tests of scripts/ (tests/)
 make check-scenarios  # every scenario: layout, expected.yaml against the schema, render as declared
+make faultbox-lint faultbox-test  # gofmt, go vet and the unit tests (race detector) of tools/faultbox
 # CI sets CHECK_BASE=origin/main on a pull request to a cluster branch: scenarios are laid over main, not over the
 # branch (which already holds one scenario's files)
 ```
@@ -128,7 +135,7 @@ recent push, code owner review, the repository admin role as the only bypass act
   is what protects the guard itself.
 - `Render manifests` (`.github/workflows/render.yaml`): every kustomization under `clusters/`, `infrastructure/` and `apps/` renders and passes the schema check for the lab's Kubernetes version, and every Flux `path:` in `clusters/` exists. `scenarios/` (deliberately broken) is left out.
 
-Not required (yet): `Harness tests` (`.github/workflows/harness.yaml`: shellcheck, `tests/`, `make check-scenarios`)
+Not required (yet): `Harness tests` and `faultbox tests` (`.github/workflows/harness.yaml`: shellcheck, `tests/`, `make check-scenarios`; `make faultbox-lint faultbox-test` with the Go toolchain of `tools/faultbox/go.mod`)
 and `Kind baseline` (`.github/workflows/kind.yaml`: a Kind cluster with Flux on the commit under test, read-only,
 until the healthy baseline is Ready, then `make kind-dry-run-config`: the CRDs of the chart pinned in
 `infrastructure/shadewright/ocirepository.yaml` are installed (fetched by that digest, checksums verified) and
