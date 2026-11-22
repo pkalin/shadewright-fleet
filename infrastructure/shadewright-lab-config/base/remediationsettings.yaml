@@ -40,4 +40,5 @@ spec:
     # 180 since 2026-11-17: the release run goes through the matrix once per model provider (three passes in one
     # day), 3 x 54 analyses at worst and a margin of 18. The token cap below is per model, so it stays.
     maxAnalysesPerDay: 180
-    # models: see the variant (the triage model; no escalation model, the lab has one triage model, operator issue #80).
+    # models: see the variant (a triage and an escalation model per provider; the escalation model is the only one offered
+    # the read tools, and its maxTokensPerDay of 300000 bounds one escalated analysis).

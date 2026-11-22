@@ -2,6 +2,9 @@
 # Foundry, reached with the analyzer's workload identity (no key, no Secret). triageModel is the model as its replies
 # name it (<name>-<version>, foundation/terraform.tfvars.example in shadewright-azure). endpointSuffixes lists the lab's
 # own AI Services account host only, so no other resource receives the context or a token.
+# escalationModel is the foundation's deployment "escalation" (gpt-5.4, version 2026-03-05, foundation/terraform.tfvars in
+# shadewright-azure), called with the read tools on an escalation signal. gpt-5.4 takes function tools on chat
+# completions, so the settings leave inferenceAPI out; a gpt-6.1 deployment would need inferenceAPI Responses (operator #501).
 # The matching settings are in ../../shadewright-lab-config/foundry.
 #
 #   Variable               Source (shadewright-azure)                                     Used for
@@ -25,5 +28,6 @@ patches:
           analyzer:
             analysis:
               triageModel: gpt-5.4-mini-2026-03-17
+              escalationModel: gpt-5.4-2026-03-05
               endpointSuffixes:
                 - "${MODEL_ENDPOINT_SUFFIX}"
