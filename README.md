@@ -48,8 +48,8 @@ command, never by a commit here: `foundry` (the default: Microsoft Foundry, the 
 `anthropic` (the Anthropic API) and `openai` (the OpenAI API through the OpenAI-compatible provider, operator ADR-0042).
 Each has a directory under `infrastructure/shadewright-lab/` (the chart values) and under
 `infrastructure/shadewright-lab-config/` (the `RemediationSettings` models); the parts every provider shares are in
-`base/` next to them. A variant holds only its provider's values: the triage model, the provider's chart values and its
-`analysis.models.triage`. The Secrets of the keys (`shadewright-anthropic`, `shadewright-openai`, key `api-key`) are
+`base/` next to them. A variant holds only its provider's values: the triage and escalation models, the provider's chart
+values and its `analysis.models.triage` and `analysis.models.escalation`. The Secrets of the keys (`shadewright-anthropic`, `shadewright-openai`, key `api-key`) are
 created outside Git by shadewright-azure.
 
 How it is selected: the path of the Flux Kustomizations `shadewright` and `shadewright-config` ends in
@@ -64,6 +64,23 @@ settings never come from different providers for longer than that reconcile.
 The `openai` variant needs a chart release that has operator ADR-0042 (`analyzer.analysis.openAICompatible`, provider
 `OpenAICompatible`): the pinned chart (v0.6.0-rc.1) has it, and `schemas/` holds its CRDs, so the render check covers that
 variant's `RemediationSettings` like the others.
+
+Escalation models (the only models offered the read tools, such as `get_resource`; a scenario that needs a tool
+escalates on a failed source, README of `liveness-path`):
+
+| Provider | Triage | Escalation | Where the ID comes from |
+| --- | --- | --- | --- |
+| `foundry` | `gpt-5.4-mini-2026-03-17` (deployment `triage`) | `gpt-5.4-2026-03-05` (deployment `escalation`, chat completions) | the foundation's `model_deployments` in shadewright-azure |
+| `anthropic` | `claude-haiku-5-5` | `claude-sonnet-5-5` | operator docs and eval tests name the ID |
+| `openai` | `gpt-6.1-sol` | `gpt-6-astra` (Responses) | only a test fixture of the operator names it: check it against a recorded response before the run |
+
+Each escalation deployment has `maxTokensPerDay: 300000`, which today bounds one analysis (operator
+`ModelDeployment.maxTokensPerDay`), so one escalated analysis spends at most 300,000 tokens on the escalation model. At
+the output price of the model that is at most USD 4.50 (`gpt-5.4`, USD 15 per 1M output), USD 3.00 (Sonnet 5.5, USD 10)
+and USD 15.00 (astra, USD 50, the Foundry list price: the OpenAI API price is not in this repository). The loop's own
+limits (4 tool steps, 2048 output tokens per call, a context of about 12,000 tokens) put a typical escalated analysis
+near USD 0.30, 0.22 and 1.10, before tool results. `gpt-5.4` does not need `inferenceAPI: Responses`; a `gpt-6.1` model
+on Foundry would (operator #501).
 
 ## Kind
 

@@ -55,13 +55,13 @@ scenario:
    metric template then fails, the metrics block says "could not fetch" and the context escalates. Prometheus is
    installed by a `HelmRelease` that sets no drift detection, so the change is expected to hold until the next Helm
    upgrade, not until the next Flux reconcile. The Deployment name and that behaviour were not checked on a cluster.
-2. An escalation model. The lab has none today (`infrastructure/shadewright-lab/` sets only the triage model; the
-   operator issue #80 is the second deployment). Without it an escalation is handed off with
-   `EscalationNotConfigured` before any tool is offered. Which escalation model each provider gets is left to the operator epic
-   [pkalin/shadewright#503](https://github.com/pkalin/shadewright/issues/503) (ADR-0027 sets no default), and the second
-   deployment is added with that choice. Foundry needs `inferenceAPI: Responses` for a model that refuses function
-   tools on chat completions ([pkalin/shadewright#501](https://github.com/pkalin/shadewright/issues/501)). This
-   pull request does not change `infrastructure/`; the row stays planned until both prerequisites exist.
+2. An escalation model. Each provider variant of the lab sets one (README, "Model provider", table of escalation
+   models), so this holds once the lab runs with them. Without one an escalation is handed off with
+   `EscalationNotConfigured` before any tool is offered. The choice is for the lab's evaluation run, not a default
+   (ADR-0027 sets none; [pkalin/shadewright#503](https://github.com/pkalin/shadewright/issues/503)). A Foundry model that
+   refuses function tools on chat completions needs `inferenceAPI: Responses`
+   ([pkalin/shadewright#501](https://github.com/pkalin/shadewright/issues/501)); the lab's `gpt-5.4` does not.
+   The row stays planned until a run has seen the tool call.
 
 ## Expected path (planned, not observed)
 

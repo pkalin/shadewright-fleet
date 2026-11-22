@@ -8,6 +8,10 @@
 # and the endpoint's models list) and in ../../shadewright-lab-config/openai once (deployment); change all three together
 # to test another model. triageModel must be the model ID the replies name, snapshot suffix included, so set it from a
 # recorded response before the run.
+# escalationModel gpt-6-astra (the stronger model; settings must name a different deployment from triage, and gpt-6.1-sol
+# is the triage one) is in this file twice (escalationModel and the models list) and in ../../shadewright-lab-config/openai
+# once. No operator or lab file records it as an api.openai.com model ID (only a test fixture names it), so check it
+# and its snapshot suffix against a recorded response before the run, as for triageModel.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -28,12 +32,14 @@ patches:
             analysis:
               disableFoundry: true
               triageModel: gpt-6.1-sol
+              escalationModel: gpt-6-astra
               openAICompatible:
                 endpoints:
                   - url: https://api.openai.com/v1
                     inferenceAPI: Responses
                     models:
                       - gpt-6.1-sol
+                      - gpt-6-astra
                     apiKey:
                       secretName: shadewright-openai
                       secretKey: api-key

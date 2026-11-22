@@ -50,7 +50,7 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
     (no key). Anthropic: triage model `claude-haiku-5-5` through the Anthropic API (operator ADR-0037; the key is the Secret `shadewright-anthropic` in
     `shadewright-system`, created outside Git by shadewright-azure's `make lab-up`, mounted into the analyzer
     only; without it the analyzer pod stays in ContainerCreating). OpenAI: `gpt-6.1-sol` through the OpenAI-compatible provider (ADR-0042; Secret
-    `shadewright-openai`; needs a chart release that has it, README "Model provider"). No `escalationModel` (the lab has one triage model; a second comes with operator issue #80),
+    `shadewright-openai`; needs a chart release that has it, README "Model provider"). Each variant also sets `escalationModel` and `analysis.models.escalation` (the only model offered the read tools): Foundry the deployment `escalation` (`gpt-5.4-2026-03-05`, chat completions), Anthropic `claude-sonnet-5-5`, OpenAI `gpt-6-astra` (Responses; its ID is not confirmed for api.openai.com),
     `prometheus.url` with the analyzer-to-Prometheus egress (`networkPolicy.analyzer.prometheus`; the ingress side is
     in `infrastructure/prometheus/networkpolicy-server.yaml`), `endpointSuffixes` (foundry and anthropic variants) limited to the lab's own AI Services host (`${MODEL_ENDPOINT_SUFFIX}`; the flag is still required, the
     allow-list does not apply to Anthropic) and `actionPolicies`. The daily cap (`maxAnalysesPerDay`) is in the `RemediationSettings`, not here:
