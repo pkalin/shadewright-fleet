@@ -62,7 +62,7 @@ is `foundry`. A change of the ConfigMap changes both paths in one reconcile of `
 settings never come from different providers for longer than that reconcile.
 
 The `openai` variant needs a chart release that has operator ADR-0042 (`analyzer.analysis.openAICompatible`, provider
-`OpenAICompatible`): the pinned chart (v0.6.0-rc.1) has it, and `schemas/` holds its CRDs, so the render check covers that
+`OpenAICompatible`): the pinned chart (v0.6.0-rc.4) has it, and `schemas/` holds its CRDs, so the render check covers that
 variant's `RemediationSettings` like the others.
 
 Escalation models (the only models offered the read tools, such as `get_resource`; a scenario that needs a tool
