@@ -3,7 +3,6 @@
 # limit, SetContainerMemoryLimit), so keep every value literal: no patches or generators (ADR-0012).
 # Image: https://github.com/stefanprodan/podinfo (6.17.0, multi-arch index digest on ghcr.io); the image's
 # user "app" is uid 100, gid 101.
-# SCENARIO liveness-path (scenarios/liveness-path): the liveness probe asks for /health, a path podinfo is not expected to serve (it serves /healthz), so the probe fails and the kubelet restarts the container. The kubelet's event gives the status code, not the path.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -71,7 +70,7 @@ spec:
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: http
             periodSeconds: 10
             timeoutSeconds: 2
