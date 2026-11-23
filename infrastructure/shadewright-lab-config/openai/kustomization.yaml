@@ -1,7 +1,7 @@
 # Model provider OpenAI, through the OpenAI-compatible provider (operator ADR-0042): the declared base and API of
 # infrastructure/shadewright-lab/openai, and one of its allowed models. apiVersion is forbidden for this provider. The
 # key is the Secret shadewright-openai, not in the settings. The model name is the one value to set before a run with
-# another model (three places, see infrastructure/shadewright-lab/openai).
+# another model (three places, see infrastructure/shadewright-lab/openai; the escalation model gpt-6-astra is set the same way).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -24,3 +24,10 @@ patches:
               inferenceAPI: Responses
               deployment: gpt-6.1-sol
               maxTokensPerDay: 800000
+            escalation:
+              provider: OpenAICompatible
+              endpoint: https://api.openai.com/v1
+              inferenceAPI: Responses
+              # infrastructure/shadewright-lab/openai's escalationModel; must differ from the triage deployment.
+              deployment: gpt-6-astra
+              maxTokensPerDay: 300000

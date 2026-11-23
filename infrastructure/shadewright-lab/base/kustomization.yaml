@@ -11,11 +11,10 @@
 #
 # Analysis (evaluation run only, not production; operator docs/lab-oom-acceptance.md, "Evaluation run"): the model
 # provider is not set here. The lab holds one variant per provider next to this directory (foundry, anthropic, openai),
-# each a kustomization over this base that adds triageModel and the provider's own values; the Flux Kustomization
-# "shadewright" applies one of them (clusters/lab/shadewright.yaml, README, "Model provider"). Each variant says
-# how its model is reached and which Secret it needs. No escalationModel in any of them: the lab has a single triage
-# model, so read tools (offered only to the escalation model) are off and an escalation signal hands the Incident
-# off (operator issue #80).
+# each a kustomization over this base that adds triageModel, escalationModel and the provider's own values; the Flux
+# Kustomization "shadewright" applies one of them (clusters/lab/shadewright.yaml, README, "Model provider"). Each variant
+# says how its models are reached and which Secret it needs. The escalationModel is the only one offered the read tools
+# (get_resource and the others), on an escalation signal; the matching deployment is in ../../shadewright-lab-config.
 #
 # prometheus.url is the lab Prometheus (infrastructure/prometheus, Service port 80) as the analyzer's metrics source;
 # without it the context has no metrics and an OOM Incident is handed off with MissingData. networkPolicy.analyzer.

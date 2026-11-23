@@ -50,7 +50,7 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
     (no key). Anthropic: triage model `claude-haiku-5-5` through the Anthropic API (operator ADR-0037; the key is the Secret `shadewright-anthropic` in
     `shadewright-system`, created outside Git by shadewright-azure's `make lab-up`, mounted into the analyzer
     only; without it the analyzer pod stays in ContainerCreating). OpenAI: `gpt-6.1-sol` through the OpenAI-compatible provider (ADR-0042; Secret
-    `shadewright-openai`; needs a chart release that has it, README "Model provider"). No `escalationModel` (the lab has one triage model; a second comes with operator issue #80),
+    `shadewright-openai`; needs a chart release that has it, README "Model provider"). Each variant also sets `escalationModel` and `analysis.models.escalation` (the only model offered the read tools): Foundry the deployment `escalation` (`gpt-5.4-2026-03-05`, chat completions), Anthropic `claude-sonnet-5-5`, OpenAI `gpt-6-astra` (Responses; its ID is not confirmed for api.openai.com),
     `prometheus.url` with the analyzer-to-Prometheus egress (`networkPolicy.analyzer.prometheus`; the ingress side is
     in `infrastructure/prometheus/networkpolicy-server.yaml`), `endpointSuffixes` (foundry and anthropic variants) limited to the lab's own AI Services host (`${MODEL_ENDPOINT_SUFFIX}`; the flag is still required, the
     allow-list does not apply to Anthropic) and `actionPolicies`. The daily cap (`maxAnalysesPerDay`) is in the `RemediationSettings`, not here:
@@ -71,12 +71,21 @@ The GitOps repo for the Shadewright lab cluster, synced by Flux. It is also the 
   manifests only; values the patchers change (memory limits, `maxReplicaCount`) stay literal. The worker has no
   `spec.replicas`: the HPA that KEDA creates owns it.
 - `scenarios/`: one folder per reproducible incident (bad image, missing Secret reference, OOM, unschedulable pod,
-  broken KEDA trigger, invalid manifest, StatefulSet OOM, and the load-driven `oom-leak` and `keda-ceiling-persists`), each with a `README.md` (what breaks, the expected diagnosis and the
+  broken KEDA trigger, invalid manifest, StatefulSet OOM, a wrong liveness probe path (`liveness-path`, for the read tools), and the load-driven `oom-leak` and `keda-ceiling-persists`), each with a `README.md` (what breaks, the expected diagnosis and the
   expected PR or refusal), an `expected.yaml` (schema in `scenarios/schema/`) and the broken versions of files
   under `apps/demo/` (or `apps/slowstart/`), at `scenarios/<name>/apps/demo/<file>`. Layout and schema: `scenarios/README.md`.
 - `scripts/`: `render.sh` (the render check), `scenario.sh` (the scenario harness), `kind.sh` (the Kind cluster),
   `install-tools.sh`, `lib.sh`, and `tools.env`, the one place every tool version and checksum is pinned.
-- `Makefile`: entry points, one script call each. `tests/`: offline tests of the scripts.
+- `tools/faultbox/`: a fault workload with known truth (its own Go module, standard library only, distroless image):
+  it holds memory, burns CPU, fills its emptyDir, crashes, stops being ready, answers with errors or latency and
+  writes noisy, misleading or injected log lines, set at start from flags or a config file, or through endpoints that
+  need a token from a mounted file. Every applied fault is one JSON log line with the scenario seed, and sizes are
+  capped below the pod's limits unless the scenario asks to cross them. Its `README.md` has the faults, caps and log
+  format. A tag `faultbox-vX.Y.Z` runs `.github/workflows/faultbox-image.yml`: it checks that the tag is on `main`, builds
+  amd64 and arm64, pushes `ghcr.io/pkalin/faultbox:X.Y.Z`, signs the index keyless with cosign and attests one SPDX SBOM
+  per platform (write and `id-token` permissions only in the publish job). `scripts/bump-faultbox-digest.sh sha256:<digest>`
+  moves the digest in every manifest that references the image. The manifests come later.
+- `Makefile`: entry points, one script call each (the Go checks of `tools/` call the go tool). `tests/`: offline tests of the scripts.
 
 ## Scenarios (ADR-0022)
 
@@ -105,6 +114,7 @@ make tools            # pinned kustomize, kubeconform, kind, kubectl, shellcheck
 scripts/render.sh     # kustomize build of clusters/, infrastructure/, apps/, kubeconform -strict, Flux paths exist
 make lint test        # shellcheck and the offline tests of scripts/ (tests/)
 make check-scenarios  # every scenario: layout, expected.yaml against the schema, render as declared
+make faultbox-lint faultbox-test  # gofmt, go vet and the unit tests (race detector) of tools/faultbox
 # CI sets CHECK_BASE=origin/main on a pull request to a cluster branch: scenarios are laid over main, not over the
 # branch (which already holds one scenario's files)
 ```
@@ -128,7 +138,7 @@ recent push, code owner review, the repository admin role as the only bypass act
   is what protects the guard itself.
 - `Render manifests` (`.github/workflows/render.yaml`): every kustomization under `clusters/`, `infrastructure/` and `apps/` renders and passes the schema check for the lab's Kubernetes version, and every Flux `path:` in `clusters/` exists. `scenarios/` (deliberately broken) is left out.
 
-Not required (yet): `Harness tests` (`.github/workflows/harness.yaml`: shellcheck, `tests/`, `make check-scenarios`)
+Not required (yet): `Harness tests` and `faultbox tests` (`.github/workflows/harness.yaml`: shellcheck, `tests/`, `make check-scenarios`; `make faultbox-lint faultbox-test` with the Go toolchain of `tools/faultbox/go.mod`)
 and `Kind baseline` (`.github/workflows/kind.yaml`: a Kind cluster with Flux on the commit under test, read-only,
 until the healthy baseline is Ready, then `make kind-dry-run-config`: the CRDs of the chart pinned in
 `infrastructure/shadewright/ocirepository.yaml` are installed (fetched by that digest, checksums verified) and

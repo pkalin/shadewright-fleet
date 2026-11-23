@@ -1,8 +1,9 @@
 # Model provider Foundry (the lab default): the foundation's deployment "triage" at the lab's AI Services endpoint, no key
 # (the analyzer's workload identity). The deployment is the Terraform name, triageModel (infrastructure/shadewright-lab/
 # foundry) is the model behind it. MODEL_ENDPOINT is the foundation output model_endpoint, forwarded by
-# clusters/lab/shadewright-config.yaml. No escalation model: the CRD refuses triage and escalation on the same endpoint
-# and deployment, and the lab has one deployment (operator issue #80).
+# clusters/lab/shadewright-config.yaml. The escalation role is the foundation's deployment "escalation" at the same
+# endpoint (the CRD refuses triage and escalation on the same endpoint and deployment, so the names differ), gpt-5.4
+# 2026-03-05 on chat completions; escalationModel in infrastructure/shadewright-lab/foundry names the model behind it.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -24,3 +25,9 @@ patches:
               deployment: triage
               apiVersion: "2024-10-21"
               maxTokensPerDay: 800000
+            escalation:
+              endpoint: "${MODEL_ENDPOINT}"
+              deployment: escalation
+              apiVersion: "2024-10-21"
+              # Per analysis today (operator ModelDeployment.maxTokensPerDay): bounds one escalated analysis, see README.
+              maxTokensPerDay: 300000
