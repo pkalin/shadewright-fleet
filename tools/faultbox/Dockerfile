@@ -2,7 +2,7 @@
 #   docker build -t faultbox tools/faultbox
 # Run it with a read-only root filesystem; the disk fault writes only into --disk-dir (an emptyDir in a pod).
 # The builder and the base are pinned by digest (the same as the operator's images); bump the tag and digest together.
-FROM --platform=$BUILDPLATFORM golang:1.27.4@sha256:5e8afd493a7124a8586e134d9b532731161d4b9becf9dee5a5956b107426f93d AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.4@sha256:205c7636d74e0ffbe3d007162df7d74f859f5a8c8322dfb9f907977686c126cf AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
