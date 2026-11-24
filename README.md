@@ -106,7 +106,7 @@ with `scripts/render.sh`. The full rules and planned layout are in [AGENTS.md](A
 ## Rules on `main`
 
 `main` is the source of truth. On the lab, Flux tracks its own branch, `cluster/lab`, not `main`
-([ADR-0022](https://github.com/pkalin/shadewright/blob/main/docs/adr/0022-scenario-switch-and-clusters.md)), which
+([ADR-0022](https://github.com/shadewright-labs/shadewright/blob/main/docs/adr/0022-scenario-switch-and-clusters.md)), which
 holds the same tree as `main` between scenarios. The Shadewright operator opens its pull requests against the
 branch Flux tracks, and `main` takes changes only through a reviewed pull request:
 

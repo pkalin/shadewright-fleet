@@ -5,7 +5,7 @@ summary: The worker's ScaledObject has maxReplicaCount 2 while a heavier steady 
 incident:
   reason: ReplicaCeiling
   status: planned   # the same symptom source as keda-at-ceiling (observed there on 2026-11-08); not run with this load yet
-  source: The KEDA module's HorizontalPodAutoscaler symptom source (ScalingLimited=True with reason TooManyReplicas, internal/modules/keda/symptoms.go in pkalin/shadewright), as in keda-at-ceiling.
+  source: The KEDA module's HorizontalPodAutoscaler symptom source (ScalingLimited=True with reason TooManyReplicas, internal/modules/keda/symptoms.go in shadewright-labs/shadewright), as in keda-at-ceiling.
   object:
     apiVersion: keda.sh/v1alpha1
     kind: ScaledObject

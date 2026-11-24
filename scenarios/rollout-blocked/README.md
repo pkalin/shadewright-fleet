@@ -4,7 +4,7 @@
 `apps/demo/kustomization.yaml`, and adds `apps/demo/limitrange-container-max-memory.yaml`. It is row 4 of the
 [matrix](../MATRIX.md).
 
-**Status: exists, run on the lab on 2026-11-14.** The LimitRange was checked by hand on a Kind cluster (below); the lab run (chart `0.5.0-rc.1`, [#79](https://github.com/pkalin/shadewright-fleet/pull/79)) is in "Expected outcome".
+**Status: exists, run on the lab on 2026-11-14.** The LimitRange was checked by hand on a Kind cluster (below); the lab run (chart `0.5.0-rc.1`, [#79](https://github.com/shadewright-labs/shadewright-fleet/pull/79)) is in "Expected outcome".
 
 ## What breaks
 
