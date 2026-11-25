@@ -2,7 +2,7 @@
 
 An evaluation case, not a break: `make scenario-replaced-pod` changes no file under `apps/demo/` (the scenario has
 none), so the switch is a no-op. The scenario exists so that its `expected.yaml` is the rubric of a case the
-real-model evaluation scores (`test/eval/testdata/scenarios/replaced-pod` in `pkalin/shadewright`).
+real-model evaluation scores (`test/eval/testdata/scenarios/replaced-pod` in `shadewright-labs/shadewright`).
 
 ## What happened
 
@@ -11,7 +11,7 @@ On 2026-11-14 (v0.5.0-rc.1) the lab switched the demo namespace from `oom-leak` 
 terminating and still reporting `OOMKilled`. A new Incident opened from that pod, the model proposed
 `SetContainerMemoryLimit` 64Mi to 96Mi (`previous` read from the new template), the pull request was merged, and the
 request ended `Succeeded` because the symptom had gone with the old pod
-([pkalin/shadewright#724](https://github.com/pkalin/shadewright/issues/724)).
+([shadewright-labs/shadewright#724](https://github.com/shadewright-labs/shadewright/issues/724)).
 
 ## The recorded state
 

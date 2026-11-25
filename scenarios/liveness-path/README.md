@@ -2,7 +2,7 @@
 
 `make scenario-liveness-path CLUSTER=kind|lab` replaces `apps/demo/web-deployment.yaml`.
 
-This is the scenario for the read tools ([pkalin/shadewright#926](https://github.com/pkalin/shadewright/issues/926)).
+This is the scenario for the read tools ([shadewright-labs/shadewright#926](https://github.com/shadewright-labs/shadewright/issues/926)).
 In the lab run of `v0.6.0-rc.1` no analysis called a tool (0 in 27): every other scenario is answered from the first
 context, and only an escalated analysis is offered tools. This one is built so that the deciding fact is not in the
 first context. Whether it escalates is not decided by the manifest: see "What escalates" below, which has two
@@ -58,9 +58,9 @@ scenario:
 2. An escalation model. Each provider variant of the lab sets one (README, "Model provider", table of escalation
    models), so this holds once the lab runs with them. Without one an escalation is handed off with
    `EscalationNotConfigured` before any tool is offered. The choice is for the lab's evaluation run, not a default
-   (ADR-0027 sets none; [pkalin/shadewright#503](https://github.com/pkalin/shadewright/issues/503)). A Foundry model that
+   (ADR-0027 sets none; [shadewright-labs/shadewright#503](https://github.com/shadewright-labs/shadewright/issues/503)). A Foundry model that
    refuses function tools on chat completions needs `inferenceAPI: Responses`
-   ([pkalin/shadewright#501](https://github.com/pkalin/shadewright/issues/501)); the lab's `gpt-5.4` does not.
+   ([shadewright-labs/shadewright#501](https://github.com/shadewright-labs/shadewright/issues/501)); the lab's `gpt-5.4` does not.
    The row stays planned until a run has seen the tool call.
 
 ## Expected path (planned, not observed)

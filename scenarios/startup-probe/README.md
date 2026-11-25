@@ -2,7 +2,7 @@
 
 An evaluation case, not a break: `make scenario-startup-probe` changes no file under `apps/demo/` (the scenario has
 none), so the switch is a no-op. The scenario exists so that its `expected.yaml` is the rubric of a case the
-real-model evaluation scores (`test/eval/testdata/scenarios/startup-probe` in `pkalin/shadewright`).
+real-model evaluation scores (`test/eval/testdata/scenarios/startup-probe` in `shadewright-labs/shadewright`).
 
 ## What happened
 
@@ -10,7 +10,7 @@ On 2026-11-14 (v0.5.0-rc.1) the lab switched on `keda-ceiling-persists`. KEDA sc
 logged one `Unhealthy` event while it started: `Readiness probe failed: ... connect: connection refused`. It was Ready
 a few seconds later and never restarted. An Incident opened on that event and the model proposed
 `SetContainerMemoryLimit` 64Mi to 96Mi. Nothing pointed at memory
-([pkalin/shadewright#726](https://github.com/pkalin/shadewright/issues/726)).
+([shadewright-labs/shadewright#726](https://github.com/shadewright-labs/shadewright/issues/726)).
 
 ## Expected outcome (planned)
 

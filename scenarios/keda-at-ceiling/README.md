@@ -31,14 +31,14 @@ only to list the new file.
 The collector reads Warning events and Pod terminations, and has no read access to HPAs or ScaledObjects. The
 Incident comes from the KEDA module's HPA symptom source, which reads the condition and reports `ReplicaCeiling`;
 the analyzer consumes module symptom sources
-([pkalin/shadewright#380](https://github.com/pkalin/shadewright/issues/380), closed 2026-11-05). Lab runs, times UTC:
+([shadewright-labs/shadewright#380](https://github.com/shadewright-labs/shadewright/issues/380), closed 2026-11-05). Lab runs, times UTC:
 
 - 2026-11-07 (v0.3.0-rc.4): the Incident opened; the analysis ended `MissingData` and was escalated to a person (no
-  metrics template for HPA metrics, [pkalin/shadewright#480](https://github.com/pkalin/shadewright/issues/480)).
+  metrics template for HPA metrics, [shadewright-labs/shadewright#480](https://github.com/shadewright-labs/shadewright/issues/480)).
 - 2026-11-08 (rc.5), first run: no Incident for 14 minutes. Since
-  [pkalin/shadewright#478](https://github.com/pkalin/shadewright/issues/478) the KEDA symptom sources run only while
+  [shadewright-labs/shadewright#478](https://github.com/shadewright-labs/shadewright/issues/478) the KEDA symptom sources run only while
   `RemediationSettings` `spec.modules.integrations` lists `keda`, and the lab listed none.
-  [pkalin/shadewright-fleet#52](https://github.com/pkalin/shadewright-fleet/pull/52) listed `keda` and added the policy
+  [shadewright-labs/shadewright-fleet#52](https://github.com/shadewright-labs/shadewright-fleet/pull/52) listed `keda` and added the policy
   `demo-keda` (2 to 3, at most +50%, no decrease, `apps/demo/*-scaledobject.yaml`).
 - Then a `ReplicaCeiling` Incident on the ScaledObject at about 08:18:54, one Incident and one request, no duplicates.
 
@@ -54,7 +54,7 @@ ceiling alone is a candidate. Request rate over time would come from Prometheus 
 
 ## Outcome (observed, 2026-11-08, v0.3.0-rc.5)
 
-[pkalin/shadewright-fleet#53](https://github.com/pkalin/shadewright-fleet/pull/53) (`maxReplicaCount` 2 to 3, one
+[shadewright-labs/shadewright-fleet#53](https://github.com/shadewright-labs/shadewright-fleet/pull/53) (`maxReplicaCount` 2 to 3, one
 field) opened 53 s after the Incident. Merged 08:22:00 UTC, the executor saw it at 08:22:01, and the HPA was at 3 of
 3 with `ScalingLimited` False (`DesiredWithinRange`) by 08:23:51.
 
@@ -66,7 +66,7 @@ A pull request with `AdjustKedaMaxReplicas`, `previousValue` 2 and `desiredValue
 The load of about 13 requests per second needs 3 replicas, so 3 clears the ceiling and the new bounds stop at 3.
 
 Prerequisites, both now in this repository (`infrastructure/shadewright-lab-config/`, from
-[pkalin/shadewright-fleet#52](https://github.com/pkalin/shadewright-fleet/pull/52)): the `keda` integration enabled in
+[shadewright-labs/shadewright-fleet#52](https://github.com/shadewright-labs/shadewright-fleet/pull/52)): the `keda` integration enabled in
 `RemediationSettings` (`spec.modules.integrations`), and the lab `RemediationPolicy` `demo-keda` for
 `AdjustKedaMaxReplicas` on namespace `demo` with the path `apps/demo/*-scaledobject.yaml`.
 

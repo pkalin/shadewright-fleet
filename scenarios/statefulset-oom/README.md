@@ -34,7 +34,7 @@ waits for each to be Running and Ready before the next. So when Flux applies the
   2026-11-08 run did not merge the pull request.
 - That is why there are two replicas: with one, the whole workload is down, and the ordering is not visible.
 
-## Decisions on the open questions of pkalin/shadewright#269
+## Decisions on the open questions of shadewright-labs/shadewright#269
 
 - **Storage: none.** No `volumeClaimTemplates`, only `emptyDir` volumes. Nothing in the demo keeps data, so there is
   no PersistentVolumeClaim, no disk cost on the lab, and the restricted profile needs no `fsGroup` (the `emptyDir`
@@ -54,13 +54,13 @@ waits for each to be Running and Ready before the next. So when Flux applies the
 
 ## Observed on the lab (2026-11-08, v0.3.0-rc.5)
 
-Times UTC, after [pkalin/shadewright-fleet#52](https://github.com/pkalin/shadewright-fleet/pull/52) added
+Times UTC, after [shadewright-labs/shadewright-fleet#52](https://github.com/shadewright-labs/shadewright-fleet/pull/52) added
 `apps/demo/*-statefulset.yaml` to the policy `demo-memory`:
 
 - An `OOMKilled` Incident on StatefulSet `demo/cache` at about 08:24:44.
-- [pkalin/shadewright-fleet#54](https://github.com/pkalin/shadewright-fleet/pull/54) (the `cache` container, 48Mi to
+- [shadewright-labs/shadewright-fleet#54](https://github.com/shadewright-labs/shadewright-fleet/pull/54) (the `cache` container, 48Mi to
   72Mi, +50%) at 08:27:39. Two more Incidents (`BackOff`, `Unhealthy`) for the same subject did not make more pull
-  requests ([pkalin/shadewright#432](https://github.com/pkalin/shadewright/issues/432)).
+  requests ([shadewright-labs/shadewright#432](https://github.com/shadewright-labs/shadewright/issues/432)).
 - Merged at 08:30:03 UTC as the lab was destroyed, so the delivery and the manual pod delete after a merge are still not checked.
 - Real-model replay evaluation on rc.5 (https://shadewright.io/evaluation/): 0 of 5 runs with all facts. The
   diagnosis never names `cache-0`, and often leaves out the metric names.
@@ -85,7 +85,7 @@ limit. The Prometheus pod templates resolve StatefulSet pods through owner refer
 A pull request with `SetContainerMemoryLimit` on container `cache`, raising the limit within the policy's bounds
 (`64Mi` to `128Mi`, as in `oom`: the container needs about 54Mi). It changes only
 `spec.template.spec.containers[name=cache].resources.limits.memory` in `apps/demo/cache-statefulset.yaml`.
-The operator side, checked against the code in `pkalin/shadewright`:
+The operator side, checked against the code in `shadewright-labs/shadewright`:
 
 - the action's target kinds include `apps/v1` `StatefulSet` (`internal/policy/decide.go`, the catalog table);
 - `FieldFor` accepts a StatefulSet and returns the same field path as for a Deployment (`internal/gitops/sourcemap/field.go`,

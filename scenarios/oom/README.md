@@ -26,10 +26,10 @@ The memory limit is the field the action patches, so a reset changes it back to 
   reads; there is no event with that reason (design 3.1). `BackOff` and `Unhealthy` are the kubelet's Warning events
   for the restarts and the failing probes.
 - Request and pull request: a hand-written `RemediationRequest` (the analyzer does not create requests yet) opened
-  pkalin/shadewright-fleet#26, a one-line change of the limit from `48Mi` to `64Mi`. It reached `AwaitingApproval`
+  shadewright-labs/shadewright-fleet#26, a one-line change of the limit from `48Mi` to `64Mi`. It reached `AwaitingApproval`
   in about a minute and went `Superseded` 307 s after a change of the policy's bounds.
 - The healthy baseline also produced one-off startup Incidents for `worker`
-  ([#267](https://github.com/pkalin/shadewright/issues/267)).
+  ([#267](https://github.com/shadewright-labs/shadewright/issues/267)).
 
 ## Observed analysis (v0.3.0-rc.1 lab run, 2026-11-06)
 
@@ -41,28 +41,28 @@ The first run with a real model (evaluation run, not production; operator `docs/
   code 137") about 40 s after the scenario commit; the analyzer analyzed it 2 min 21 s later.
 - Outcome: `Escalated`, reason `MissingData`, no request. One model call, no tool calls, 2,610 tokens.
 - What the model said was missing is not known: the result's `missingData` is neither logged nor stored yet
-  ([shadewright#422](https://github.com/pkalin/shadewright/issues/422), [#77](https://github.com/pkalin/shadewright/issues/77)).
+  ([shadewright#422](https://github.com/shadewright-labs/shadewright/issues/422), [#77](https://github.com/shadewright-labs/shadewright/issues/77)).
 - The context had the termination and the symptom only: the restart count and the memory working set below are
   not wired into the analyzer yet, so a hand-off rather than a guessed limit is the safe answer.
 - Before the scenario, the six one-off startup Incidents of the healthy baseline were analyzed as soon as the
   settings arrived, all `MissingData`, 13,209 tokens in total
-  ([shadewright#423](https://github.com/pkalin/shadewright/issues/423)).
+  ([shadewright#423](https://github.com/shadewright-labs/shadewright/issues/423)).
 
 ## Observed from the analyzer (v0.3.0-rc.2 to rc.5, 2026-11-06 to 2026-11-08)
 
 The analyzer now creates the request itself; the hand-written request above is history. Lab runs, times UTC:
 
-- 2026-11-06 (rc.2): pull request [pkalin/shadewright-fleet#45](https://github.com/pkalin/shadewright-fleet/pull/45),
+- 2026-11-06 (rc.2): pull request [shadewright-labs/shadewright-fleet#45](https://github.com/shadewright-labs/shadewright-fleet/pull/45),
   3m34s from the symptom; the executor saw the merge 4m07s late
-  ([pkalin/shadewright#434](https://github.com/pkalin/shadewright/issues/434)).
+  ([shadewright-labs/shadewright#434](https://github.com/shadewright-labs/shadewright/issues/434)).
 - 2026-11-07 (rc.4): two proposals, both `Denied` by policy, correctly. 48Mi to 96Mi was over the 50% step, because
-  the model did not see the policy bounds ([#493](https://github.com/pkalin/shadewright/issues/493)); the other, from a
+  the model did not see the policy bounds ([#493](https://github.com/shadewright-labs/shadewright/issues/493)); the other, from a
   readiness-probe Incident, took 64Mi from an old pod as the previous value
-  ([#494](https://github.com/pkalin/shadewright/issues/494)).
-- 2026-11-08 (rc.5): [pkalin/shadewright-fleet#51](https://github.com/pkalin/shadewright-fleet/pull/51) (48Mi to
+  ([#494](https://github.com/shadewright-labs/shadewright/issues/494)).
+- 2026-11-08 (rc.5): [shadewright-labs/shadewright-fleet#51](https://github.com/shadewright-labs/shadewright-fleet/pull/51) (48Mi to
   64Mi) 3m13s after the first symptom. One OOM opened three Incidents for `demo/web` (`OOMKilled` 07:14:59, `BackOff`
   07:17:31, `Unhealthy` 07:17:46), each analyzed (proposals 64Mi, 72Mi, 64Mi); the target lock kept it to one pull
-  request ([#432](https://github.com/pkalin/shadewright/issues/432)). Merged 07:33:28, the executor recorded the
+  request ([#432](https://github.com/shadewright-labs/shadewright/issues/432)). Merged 07:33:28, the executor recorded the
   merge at 07:33:40 (12 s), Flux applied it at 07:34:10, and the new pod ran at 64Mi without restarts. The two
   waiting duplicate requests then ended `NeedsIntervention`, reason `KustomizationNotReady` (Flux was mid-reconcile
   of the fix).

@@ -1,7 +1,7 @@
 # Slowstart OOM kill
 
 `make scenario-slowstart-oom CLUSTER=kind|lab` replaces `apps/slowstart/slowstart-deployment.yaml`. It needs
-the `slowstart` workload (`apps/slowstart/`, [#105](https://github.com/pkalin/shadewright-fleet/pull/105)) on `main`.
+the `slowstart` workload (`apps/slowstart/`, [#105](https://github.com/shadewright-labs/shadewright-fleet/pull/105)) on `main`.
 
 It is the `oom` scenario for the workload of rows 13 and 14 of the matrix: `slowstart` has no `startupProbe`, so its
 readiness failure at every start is a real `Unhealthy` event, which `web` no longer gives since #101.

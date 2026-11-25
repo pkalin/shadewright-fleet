@@ -49,7 +49,7 @@ SHA=0123456789abcdef0123456789abcdef01234567
 
 run "$KIND" bootstrap
 expect_ok "the default bootstrap tracks cluster/kind" "branch: cluster/kind"
-check "it reads the public fleet repository" sh -c "printf '%s' \"\$1\" | grep -q 'url: https://github.com/pkalin/shadewright-fleet$'" _ "$OUT"
+check "it reads the public fleet repository" sh -c "printf '%s' \"\$1\" | grep -q 'url: https://github.com/shadewright-labs/shadewright-fleet$'" _ "$OUT"
 check "its Kustomization applies ./clusters/kind" sh -c "printf '%s' \"\$1\" | grep -q 'path: ./clusters/kind$'" _ "$OUT"
 check "no postBuild substitutions on Kind" sh -c "! printf '%s' \"\$1\" | grep -q postBuild" _ "$OUT"
 check "the source is flux-system/fleet" sh -c "printf '%s' \"\$1\" | grep -A2 '^kind: GitRepository' | grep -q 'name: fleet'" _ "$OUT"

@@ -1,7 +1,7 @@
 # faultbox
 
 A small workload that fails on request in exact, known ways, so a scenario's ground truth is written by the thing
-that caused the failure (epic pkalin/shadewright#958, decisions of 2026-11-21). One static Go binary, standard library only,
+that caused the failure (epic shadewright-labs/shadewright#958, decisions of 2026-11-21). One static Go binary, standard library only,
 on a distroless image that runs as a non-root user with a read-only root filesystem. The image pipeline and the
 manifests that run it come with later tasks.
 

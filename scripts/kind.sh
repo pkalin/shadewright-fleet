@@ -12,7 +12,7 @@
 #
 # Environment:
 #   KIND_CLUSTER_NAME  default shadewright (context kind-shadewright)
-#   FLEET_URL          default https://github.com/pkalin/shadewright-fleet (public, read over HTTPS, no credentials)
+#   FLEET_URL          default https://github.com/shadewright-labs/shadewright-fleet (public, read over HTTPS, no credentials)
 #   FLEET_BRANCH       the branch Flux tracks, default cluster/kind (the harness's branch for CLUSTER=kind)
 #   FLEET_COMMIT       optional commit to pin together with FLEET_BRANCH (CI on main)
 #   FLEET_REF_NAME     a ref instead of a branch, such as refs/pull/12/head (CI on a pull request; read-only, and the
@@ -26,7 +26,7 @@ set -euo pipefail
 cd "$REPO_ROOT"
 
 NAME="${KIND_CLUSTER_NAME:-shadewright}"
-FLEET_URL="${FLEET_URL:-https://github.com/pkalin/shadewright-fleet}"
+FLEET_URL="${FLEET_URL:-https://github.com/shadewright-labs/shadewright-fleet}"
 FLEET_BRANCH="${FLEET_BRANCH:-cluster/kind}"
 FLEET_COMMIT="${FLEET_COMMIT:-}"
 FLEET_REF_NAME="${FLEET_REF_NAME:-}"
